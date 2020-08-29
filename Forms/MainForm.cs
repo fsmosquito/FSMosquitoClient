@@ -16,21 +16,34 @@
         private Panel _simConnectStatus;
         private Panel _mqttStatus;
 
-        public MainForm(IFsMqtt fsMqtt, ILogger<MainForm> logger)
+        public MainForm(IFsMqtt fsMqtt, IFsSimConnect fsSimConnect, ILogger<MainForm> logger)
         {
             FsMqtt = fsMqtt ?? throw new ArgumentNullException(nameof(fsMqtt));
+            FsSimConnect = fsSimConnect ?? throw new ArgumentNullException(nameof(fsSimConnect));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            FsMqtt.MqttConnectionOpened += FsMqtt_MqttConnectionOpened;
+            FsMqtt.MqttConnectionClosed += FsMqtt_MqttConnectionClosed;
+            FsMqtt.SubscribeRequestRecieved += FsMqtt_SubscribeRequestRecieved;
+
+            FsSimConnect.SimConnectOpened += FsMqtt_SimConnectOpened;
+            FsSimConnect.SimConnectClosed += FsMqtt_SimConnectClosed;
 
             InitializeControls();
         }
 
         protected override void OnShown(EventArgs e)
         {
+            if (!FsSimConnect.IsConnected)
+            {
+                FsSimConnect.Connect(Handle);
+            }
+
             if (!FsMqtt.IsConnected)
             {
-                FsMqtt.Connect(Handle);
+                FsMqtt.Connect();
             }
-            
+
             base.OnShown(e);
         }
 
@@ -50,17 +63,54 @@
             private set;
         }
 
+        public IFsSimConnect FsSimConnect
+        {
+            get;
+            private set;
+        }
+
         protected override void WndProc(ref Message m)
         {
-            if (FsMqtt != null && m.Msg == Consts.WM_USER_SIMCONNECT)
+            if (FsSimConnect != null && m.Msg == Consts.WM_USER_SIMCONNECT)
             {
-                FsMqtt.SignalReceiveSimConnectMessage();
+                FsSimConnect.SignalReceiveSimConnectMessage();
             }
 
             base.WndProc(ref m);
         }
 
-        void InitializeControls()
+
+        private void FsMqtt_SimConnectOpened(object sender, EventArgs e)
+        {
+            _simConnectStatus.BackColor = Color.Green;
+        }
+
+        private void FsMqtt_SimConnectClosed(object sender, EventArgs e)
+        {
+            _simConnectStatus.BackColor = Color.Orange;
+        }
+
+
+        private void FsMqtt_MqttConnectionOpened(object sender, EventArgs e)
+        {
+            _mqttStatus.BackColor = Color.Green;
+        }
+
+        private void FsMqtt_MqttConnectionClosed(object sender, EventArgs e)
+        {
+            _mqttStatus.BackColor = Color.Orange;
+        }
+
+
+        private void FsMqtt_SubscribeRequestRecieved(object sender, SimConnectTopic topic)
+        {
+            if (FsSimConnect.IsConnected)
+            {
+                FsSimConnect.Subscribe(topic);
+            }
+        }
+
+        private void InitializeControls()
         {
             // Add the status panel
             var statusPanel = new Panel
@@ -73,7 +123,7 @@
             {
                 Width = 20,
                 Height = 20,
-                BackColor = Color.Green,
+                BackColor = Color.Orange,
                 Dock = DockStyle.Left
             };
 
@@ -83,7 +133,7 @@
             {
                 Width = 20,
                 Height = 20,
-                BackColor = Color.Green,
+                BackColor = Color.Orange,
                 Dock = DockStyle.Right
             };
 

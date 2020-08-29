@@ -29,11 +29,13 @@
             });
 
             services.AddSingleton(Configuration);
+
             services.AddSingleton<IFsMqtt, FsMqtt>();
+            services.AddSingleton<IFsSimConnect, FsSimConnect>();
 
             services.AddSingleton(f =>
             {
-                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<ILogger<MainForm>>())
+                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<IFsSimConnect>(), f.GetService<ILogger<MainForm>>())
                 {
                     StartPosition = FormStartPosition.CenterScreen,
                     ShowInTaskbar = false,

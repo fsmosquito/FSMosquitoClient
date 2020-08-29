@@ -1,30 +1,78 @@
 ﻿namespace FSMosquitoClient
 {
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
-    using Microsoft.FlightSimulator.SimConnect;
+    using MQTTnet;
+    using MQTTnet.Client;
+    using MQTTnet.Client.Connecting;
+    using MQTTnet.Client.Disconnecting;
+    using MQTTnet.Client.Options;
+    using Newtonsoft.Json;
     using System;
-    using System.Timers;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
 
-    /// <summary>
-    /// Represents a shim that translates SimConnect events to MQTT messages and vice versa.
-    /// </summary>
-    public sealed class FsMqtt : IFsMqtt
+    public class FsMqtt : IFsMqtt
     {
+        private static readonly Random s_random = new Random();
+
         private readonly ILogger<FsMqtt> _logger;
-        private readonly Timer m_timer = new Timer();
 
-        private SimConnect m_simConnect;
+        private readonly string _serverUrl;
+        private readonly string _clientId;
+        private readonly IMqttClientOptions _mqttClientOptions;
 
-        public FsMqtt(ILogger<FsMqtt> logger)
+        public event EventHandler MqttConnectionOpened;
+        public event EventHandler MqttConnectionClosed;
+        public event EventHandler<SimConnectTopic> SubscribeRequestRecieved;
+
+        public FsMqtt(IConfigurationRoot configuration, ILogger<FsMqtt> logger)
         {
+            if (configuration == null)
+                throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            // Connect to the Nexus
+            _clientId = configuration["fs_mosquito_clientid"];
+            _serverUrl = configuration["fs_mosquito_serverurl"];
+            var fsmUsername = configuration["fs_mosquito_username"];
+            var fsmPassword = configuration["fs_mosquito_password"];
+
+            _mqttClientOptions = new MqttClientOptionsBuilder()
+               .WithClientId(_clientId)
+               .WithWebSocketServer(_serverUrl)
+               .WithCredentials(fsmUsername, fsmPassword)
+               .WithKeepAlivePeriod(TimeSpan.FromSeconds(10))
+               .WithCommunicationTimeout(TimeSpan.FromSeconds(30))
+               .WithWillDelayInterval(60 * 1000)
+               .WithWillMessage(new MqttApplicationMessage()
+               {
+                   PayloadFormatIndicator = MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,
+                   ContentType = "text/plain",
+                   Topic = FSMosquitoTopic.ClientStatus,
+                   Payload = Encoding.UTF8.GetBytes("Disconnected"),
+                   Retain = true
+               })
+               .WithCleanSession()
+               .Build();
+
+            // Create a new MQTT client.
+            var factory = new MqttFactory();
+            var mqttClient = factory.CreateMqttClient();
+
+            mqttClient.UseConnectedHandler(OnConnected);
+            mqttClient.UseDisconnectedHandler(OnDisconnected);
+            mqttClient.UseApplicationMessageReceivedHandler(OnApplicationMessageReceived);
+
+            MqttClient = mqttClient;
         }
 
         public bool IsConnected
         {
             get
             {
-                return m_simConnect != null;
+                return MqttClient.IsConnected;
             }
         }
 
@@ -34,152 +82,143 @@
             private set;
         }
 
-        public void Connect(IntPtr handle)
+        public IMqttClient MqttClient
         {
-            if (IsDisposed)
-            {
-                throw new InvalidOperationException("FsMqtt Is Disposed.");
-            }
+            get;
+        }
 
-            if (IsConnected)
-            {
-                throw new InvalidOperationException("FsMqtt is already connected.");
-            }
-
-            m_simConnect = new SimConnect("FSMosquitto", handle, Consts.WM_USER_SIMCONNECT, null, 0);
-
-            /// Listen to connect and quit msgs
-            m_simConnect.OnRecvOpen += new SimConnect.RecvOpenEventHandler(SimConnect_OnRecvOpen);
-            m_simConnect.OnRecvQuit += new SimConnect.RecvQuitEventHandler(SimConnect_OnRecvQuit);
-
-            // Listen to exceptions
-            m_simConnect.OnRecvException += new SimConnect.RecvExceptionEventHandler(SimConnect_OnRecvException);
-
-            ///// Catch a simobject data request
-            //m_simConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+        public async Task Connect()
+        {
+            _logger.LogInformation($"Connecting to {_serverUrl}...");
+            await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
         }
 
         public void Disconnect()
         {
-            if (IsDisposed)
-            {
-                throw new InvalidOperationException("FsMqtt Is Disposed.");
-            }
-
-            if (!IsConnected)
-            {
-                throw new InvalidOperationException("FsMqtt is not connected.");
-            }
-
-            m_timer.Stop();
-
-            m_simConnect.Dispose();
-            m_simConnect = null;
+            throw new NotImplementedException();
         }
 
-        public void SignalReceiveSimConnectMessage()
+        public async Task Publish<T>(string topic, T payload, bool retain = false)
         {
-            if (IsDisposed)
+            var contentType = "application/octet-stream";
+            byte[] payloadBytes;
+            if (payload is byte[])
             {
-                return;
+                payloadBytes = payload as byte[];
             }
+            else if (payload is string)
+            {
+                contentType = "text/plain";
+                payloadBytes = Encoding.UTF8.GetBytes(payload as string);
+            }
+            else
+            {
+                contentType = "application/json";
+                var payloadString = JsonConvert.SerializeObject(payload);
+                payloadBytes = Encoding.UTF8.GetBytes(payloadString);
+            }
+
+            await MqttClient.PublishAsync(new MqttApplicationMessage()
+            {
+                PayloadFormatIndicator = contentType == "application/octet-stream" ? MQTTnet.Protocol.MqttPayloadFormatIndicator.Unspecified : MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,
+                ContentType = contentType,
+                Topic = string.Format(topic, _clientId),
+                Payload = payloadBytes,
+                Retain = retain
+            });
+        }
+
+        private async Task OnConnected(MqttClientConnectedEventArgs e)
+        {
+            _logger.LogInformation($"Connected to {_serverUrl}.");
+
+            // Subscribe to all FSMosquitoClient related event topics.
+            await MqttClient.SubscribeAsync(
+                // SimConnect Events Subscription
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnectTopic, _clientId)).Build()
+                );
+
+            // Report that we've connected.
+            OnMqttConnectionOpened();
+            await Publish(FSMosquitoTopic.ClientStatus, "Connected", true);
+        }
+
+        private async Task OnDisconnected(MqttClientDisconnectedEventArgs e)
+        {
+            OnMqttConnectionClosed();
+            _logger.LogInformation($"Reconnecting to {_serverUrl}.");
+            await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
 
             try
             {
-                m_simConnect.ReceiveMessage();
+                await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
             }
             catch
             {
-                Disconnect();
+                _logger.LogInformation($"Reconnection failed.");
             }
         }
 
-        private void SimConnect_OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
+        private Task OnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
-            Console.WriteLine("SimConnect_OnRecvOpen");
-            Console.WriteLine("Connected to KH");
+            _logger.LogInformation($"Received Application Message for topic {e.ApplicationMessage.Topic}");
 
-            //sConnectButtonLabel = "Disconnect";
-            //bConnected = true;
+            switch (e.ApplicationMessage.Topic)
+            {
+                // SimConnect Subscription 
+                case var subscription when (subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnectTopic, _clientId)):
+                    var topic = JsonConvert.DeserializeObject<SimConnectTopic>(Encoding.UTF8.GetString(e.ApplicationMessage.Payload));
+                    OnSubscribeRequestRecieved(topic);
+                    break;
+            }
 
-            //// Register pending requests
-            //foreach (SimvarRequest oSimvarRequest in lSimvarRequests)
-            //{
-            //    if (oSimvarRequest.bPending)
-            //    {
-            //        oSimvarRequest.bPending = !RegisterToSimConnect(oSimvarRequest);
-            //        oSimvarRequest.bStillPending = oSimvarRequest.bPending;
-            //    }
-            //}
-
-            m_timer.Start();
+            return Task.CompletedTask;
         }
 
-        /// <summary>
-        /// Occurs when the user closes the game.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="data"></param>
-        private void SimConnect_OnRecvQuit(SimConnect sender, SIMCONNECT_RECV data)
+        private void OnMqttConnectionOpened()
         {
-            Console.WriteLine("SimConnect_OnRecvQuit");
-            Console.WriteLine("KH has exited");
-
-            m_timer.Stop();
+            if (MqttConnectionOpened != null)
+            {
+                MqttConnectionOpened.Invoke(this, EventArgs.Empty);
+            }
         }
 
-        private void SimConnect_OnRecvException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
+        private void OnMqttConnectionClosed()
         {
-            SIMCONNECT_EXCEPTION eException = (SIMCONNECT_EXCEPTION)data.dwException;
-            Console.WriteLine("SimConnect_OnRecvException: " + eException.ToString());
-
-            //lErrorMessages.Add("SimConnect : " + eException.ToString());
+            if (MqttConnectionClosed != null)
+            {
+                MqttConnectionClosed.Invoke(this, EventArgs.Empty);
+            }
         }
 
-        //private void SimConnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
-        //{
-        //    Console.WriteLine("SimConnect_OnRecvSimobjectDataBytype");
+        private void OnSubscribeRequestRecieved(SimConnectTopic topic)
+        {
+            if (SubscribeRequestRecieved != null)
+            {
+                SubscribeRequestRecieved.Invoke(this, topic);
+            }
+        }
 
-        //    uint iRequest = data.dwRequestID;
-        //    uint iObject = data.dwObjectID;
-        //    if (!lObjectIDs.Contains(iObject))
-        //    {
-        //        lObjectIDs.Add(iObject);
-        //    }
-        //    foreach (SimvarRequest oSimvarRequest in lSimvarRequests)
-        //    {
-        //        if (iRequest == (uint)oSimvarRequest.eRequest && (!bObjectIDSelectionEnabled || iObject == m_iObjectIdRequest))
-        //        {
-        //            double dValue = (double)data.dwData[0];
-        //            oSimvarRequest.dValue = dValue;
-        //            oSimvarRequest.bPending = false;
-        //            oSimvarRequest.bStillPending = false;
-        //        }
-        //    }
-        //}
+        #region IDisposable Support
+        private bool _isDisposed = false;
 
         private void Dispose(bool disposing)
         {
-            if (!IsDisposed)
+            if (!_isDisposed)
             {
                 if (disposing)
                 {
-                    if (null != m_simConnect)
-                    {
-                        m_timer.Stop();
-                        m_simConnect.Dispose();
-                        m_simConnect = null;
-                    }
+                    
                 }
 
-                IsDisposed = true;
+                _isDisposed = true;
             }
         }
 
         public void Dispose()
         {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            Dispose(true);
         }
+        #endregion
     }
 }

@@ -1,14 +1,27 @@
-﻿using System;
-
-namespace FSMosquitoClient
+﻿namespace FSMosquitoClient
 {
-    /// <summary>
-    /// Represents an interface to a FsMqtt shim.
-    /// </summary>
+    using System;
+    using System.Threading.Tasks;
+
     public interface IFsMqtt : IDisposable
     {
         /// <summary>
-        /// Gets a value that indicates if the current instance is connected to SimConnect and MQTT
+        /// Event that is raised when an MQTT Connection is successfully established.
+        /// </summary>
+        public event EventHandler MqttConnectionOpened;
+
+        /// <summary>
+        /// Event that is raised when an MQTT Connection is closed. Usually due to server shutdown/issues.
+        /// </summary>
+        public event EventHandler MqttConnectionClosed;
+
+        /// <summary>
+        /// Event that is raised when a SimConnect Topic Subscription Request is recieved.
+        /// </summary>
+        public event EventHandler<SimConnectTopic> SubscribeRequestRecieved;
+
+        /// <summary>
+        /// Gets a value that indicates if the current instance is connected to MQTT
         /// </summary>
         bool IsConnected { get; }
 
@@ -18,19 +31,13 @@ namespace FSMosquitoClient
         bool IsDisposed { get; }
 
         /// <summary>
-        /// Establish the translation between SimConnect and MQTT
+        /// Start receiving messages from MQTT
         /// </summary>
-        /// <param name="handle"></param>
-        void Connect(IntPtr handle);
+        Task Connect();
 
         /// <summary>
-        /// Stops translating messages between SimConnect and MQTT
+        /// Stops receiving messages from MQTT
         /// </summary>
         void Disconnect();
-
-        /// <summary>
-        /// Instruct the FsMqtt instance to signal SimConnect to recieve a message.
-        /// </summary>
-        void SignalReceiveSimConnectMessage();
     }
 }
