@@ -39,6 +39,10 @@ jobs:
       with:
         dotnet-version: 3.1.101
 
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@2008f912f56e61277eefaac6d1888b750582aa16
+
     # Execute all unit tests in the solution
     # - name: Execute unit tests
     #  run: dotnet test
@@ -52,4 +56,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: FSMosquitoClient
-        path: ${{ github.workspace }}\bin\Release\netcoreapp3.1\win10-x64\publish\**\*
+        path: ${{ github.workspace }}\bin\x64\Release\netcoreapp3.1\win10-x64\publish\**\*
