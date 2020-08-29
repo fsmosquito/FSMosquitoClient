@@ -45,7 +45,7 @@ jobs:
 
     # Build the application
     - name: Build the application
-      run: dotnet pubish $env:Project_Path /p:DeployOnBuild=true /p:PublishProfile="Create FSMosquitoClient Release"
+      run: dotnet publish $env:Project_Path /p:DeployOnBuild=true /p:PublishProfile="Create FSMosquitoClient Release"
 
     # Upload the MSIX package: https://github.com/marketplace/actions/upload-artifact
     - name: Upload build artifacts
