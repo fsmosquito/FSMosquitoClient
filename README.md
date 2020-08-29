@@ -69,3 +69,6 @@ This project contains a publishing profile that will bundle the application (inc
 
 
  A GitHub action is included that will automatically build and publish new releases to GitHub
+
+  - On Push to Master or on PR - Builds the project and stores the result as an artifact (except for changes to README.md and /docs/*)
+  - On tag that starts with 'v' (ex: ```git tag -a v0.1-test -m "Test release" && git push --tags```) Builds the project and creates a release that corresponds to the tag.
