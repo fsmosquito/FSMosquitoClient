@@ -42,8 +42,8 @@ jobs:
         run: dotnet publish $env:Project_Path --configuration Release --runtime win10-x64 /p:Platform=x64 /p:DeployOnBuild=true /p:PublishSingleFile=true /p:PublishProfile="Create FSMosquitoClient Release"
 
       # Zip up our build artifacts using powershell
-      - name: zip up build artifacts
-        run: Compress-Archive {{ github.workspace }}\bin\x64\Release\netcoreapp3.1\win10-x64\publish\ FSMosquitoClient.zip
+      - name: Zip build artifacts
+        run: Compress-Archive ${{ github.workspace }}\bin\x64\Release\netcoreapp3.1\win10-x64\publish\ FSMosquitoClient.zip
 
       - name: Create Release
         id: create_release
