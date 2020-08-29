@@ -2,6 +2,8 @@
 
 Client application that connects to FS2020 via SimConnect and relays data to the FSMosquito Server via MQTT
 
+![Build FSMosquito Client](https://github.com/fsmosquito/FSMosquitoClient/workflows/Build%20FSMosquito%20Client/badge.svg)
+
 ## Developing
 
 Prerequisites (For just the client):
