@@ -43,9 +43,9 @@
                .WithClientId(_clientId)
                .WithWebSocketServer(_serverUrl)
                .WithCredentials(fsmUsername, fsmPassword)
-               .WithKeepAlivePeriod(TimeSpan.FromSeconds(10))
-               .WithCommunicationTimeout(TimeSpan.FromSeconds(30))
-               .WithWillDelayInterval(60 * 1000)
+               .WithKeepAlivePeriod(TimeSpan.FromSeconds(15))
+               .WithCommunicationTimeout(TimeSpan.FromSeconds(15))
+               .WithWillDelayInterval(15 * 1000)
                .WithWillMessage(new MqttApplicationMessage()
                {
                    PayloadFormatIndicator = MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,

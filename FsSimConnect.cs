@@ -11,8 +11,10 @@
     public sealed class FsSimConnect : IFsSimConnect
     {
         private readonly ILogger<FsSimConnect> _logger;
-        private readonly Timer m_timer = new Timer();
+        private readonly Timer _timer = new Timer();
+        private readonly Timer _reconnectTimer = new Timer(15 * 1000);
 
+        private IntPtr _lastHandle;
         private SimConnect _simConnect;
         
         public event EventHandler SimConnectOpened;
@@ -21,6 +23,8 @@
         public FsSimConnect(ILogger<FsSimConnect> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            _reconnectTimer.Elapsed += OnReconnect_Elapsed;
         }
 
         public bool IsConnected
@@ -49,23 +53,34 @@
                 throw new InvalidOperationException("FsMqtt is already connected.");
             }
 
-
-            ConnectToSimConnect(handle);
+            _lastHandle = handle;
+            ConnectToSimConnect();
         }
 
-        private void ConnectToSimConnect(IntPtr handle)
+        private void ConnectToSimConnect()
         {
-            _simConnect = new SimConnect("FSMosquitto", handle, Consts.WM_USER_SIMCONNECT, null, 0);
+            try
+            {
+                _simConnect = new SimConnect("FSMosquito", _lastHandle, Consts.WM_USER_SIMCONNECT, null, 0);
 
-            /// Listen to connect and quit msgs
-            _simConnect.OnRecvOpen += new SimConnect.RecvOpenEventHandler(SimConnect_OnRecvOpen);
-            _simConnect.OnRecvQuit += new SimConnect.RecvQuitEventHandler(SimConnect_OnRecvQuit);
+                /// Listen to connect and quit msgs
+                _simConnect.OnRecvOpen += new SimConnect.RecvOpenEventHandler(SimConnect_OnRecvOpen);
+                _simConnect.OnRecvQuit += new SimConnect.RecvQuitEventHandler(SimConnect_OnRecvQuit);
 
-            // Listen to exceptions
-            _simConnect.OnRecvException += new SimConnect.RecvExceptionEventHandler(SimConnect_OnRecvException);
+                // Listen to exceptions
+                _simConnect.OnRecvException += new SimConnect.RecvExceptionEventHandler(SimConnect_OnRecvException);
 
-            ///// Catch a simobject data request
-            //m_simConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+                ///// Catch a simobject data request
+                //m_simConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+
+                _reconnectTimer.Stop();
+            }
+            catch(Exception ex)
+            {
+                _simConnect = null;
+                _logger.LogError($"Unable to connect to SimConnect: {ex.Message}", ex);
+                _reconnectTimer.Start();
+            }
         }
 
         public void Disconnect()
@@ -80,7 +95,7 @@
                 throw new InvalidOperationException("FsMqtt is not connected.");
             }
 
-            m_timer.Stop();
+            _timer.Stop();
 
             _simConnect.Dispose();
             _simConnect = null;
@@ -123,8 +138,8 @@
         private void SimConnect_OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
         {
             _logger.LogInformation("SimConnect_OnRecvOpen");
-            m_timer.Start();
-            OnSimConnectOpened();
+            _timer.Start();
+            OnSimConnect_Opened();
         }
 
         /// <summary>
@@ -135,14 +150,17 @@
         private void SimConnect_OnRecvQuit(SimConnect sender, SIMCONNECT_RECV data)
         {
             _logger.LogInformation("SimConnect_OnRecvQuit");
-            OnSimConnectClosed();
-            m_timer.Stop();
+            OnSimConnect_Closed();
+            
+            _timer.Stop();
+            _reconnectTimer.Start();
         }
 
         private void SimConnect_OnRecvException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
         {
             SIMCONNECT_EXCEPTION eException = (SIMCONNECT_EXCEPTION)data.dwException;
             _logger.LogInformation("SimConnect_OnRecvException: " + eException.ToString());
+            _reconnectTimer.Start();
         }
 
         //private void SimConnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
@@ -167,7 +185,7 @@
         //    }
         //}
 
-        private void OnSimConnectOpened()
+        private void OnSimConnect_Opened()
         {
             if (SimConnectOpened != null)
             {
@@ -175,11 +193,19 @@
             }
         }
 
-        private void OnSimConnectClosed()
+        private void OnSimConnect_Closed()
         {
             if (SimConnectClosed != null)
             {
                 SimConnectClosed.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        private void OnReconnect_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if (IsConnected == false)
+            {
+                ConnectToSimConnect();
             }
         }
 
@@ -191,7 +217,12 @@
                 {
                     if (null != _simConnect)
                     {
-                        m_timer.Stop();
+                        _timer.Stop();
+                        _timer.Stop();
+
+                        _reconnectTimer.Stop();
+                        _reconnectTimer.Dispose();
+
                         _simConnect.Dispose();
                         _simConnect = null;
                     }
