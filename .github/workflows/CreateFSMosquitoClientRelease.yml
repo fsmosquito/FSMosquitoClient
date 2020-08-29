@@ -7,7 +7,7 @@ on:
       - docs/**
       - README.md
 
-name: Upload Release Asset
+name: Create FSMosquitoClient release
 
 jobs:
 
