@@ -1,4 +1,4 @@
-name: .NET Core Desktop
+name: Build FSMosquito Client
 
 on:
   push:
@@ -39,7 +39,7 @@ jobs:
 
     # Build the application
     - name: Build the application
-      run: dotnet build $env:Project_Path p:DeployOnBuild=true /p:PublishProfile="Create FSMosquitoClient Release"
+      run: dotnet build $env:Project_Path /p:DeployOnBuild=true /p:PublishProfile="Create FSMosquitoClient Release"
 
     # Upload the MSIX package: https://github.com/marketplace/actions/upload-artifact
     - name: Upload build artifacts
