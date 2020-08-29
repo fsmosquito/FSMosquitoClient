@@ -1,0 +1,49 @@
+name: .NET Core Desktop
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+
+    strategy:
+      matrix:
+        configuration: [Release]
+
+    runs-on: windows-latest
+    
+    env:
+      Solution_Name: FSMosquitoClient.sln
+      Project_Path: FSMosquitoClient.csproj
+      Test_Project_Path: your-test-project-path                 # Replace with the path to your test project, i.e. MyWpfApp.Tests\MyWpfApp.Tests.csproj.
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.101
+
+    # Execute all unit tests in the solution
+    # - name: Execute unit tests
+    #  run: dotnet test
+
+    # Build the application
+    - name: Build the application
+      run: dotnet build $env:Project_Path p:DeployOnBuild=true /p:PublishProfile="Create FSMosquitoClient Release"
+
+    # Upload the MSIX package: https://github.com/marketplace/actions/upload-artifact
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: FSMosquitoClient
+        path: .\bin\x64\Release\netcoreapp3.1\win-x64\publish
