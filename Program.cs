@@ -35,10 +35,7 @@
 
         private void TrayIcon_Click(object sender, EventArgs e)
         {
-            if (MainForm.Visible == false)
-            {
-                MainForm.Show();
-            }
+            MainForm.Activate();
         }
 
         void MenuExit_Click(object sender, EventArgs e)
