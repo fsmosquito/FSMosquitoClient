@@ -65,6 +65,7 @@
             using Mutex mutex = new Mutex(false, $"Global\\{appGuid}");
             if (!mutex.WaitOne(0, false))
             {
+                _logger.LogInformation("Prevented a second instance of the FSMosquito client from opening.");
                 MessageBox.Show("Another instance of FSMosquito client is already running");
                 return;
             }
