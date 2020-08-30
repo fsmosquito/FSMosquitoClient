@@ -38,6 +38,10 @@
 
         private void TrayIcon_Click(object sender, EventArgs e)
         {
+            if (!MainForm.Visible)
+            {
+                MainForm.Show();
+            }
             MainForm.Activate();
         }
 
@@ -61,7 +65,7 @@
             using Mutex mutex = new Mutex(false, $"Global\\{appGuid}");
             if (!mutex.WaitOne(0, false))
             {
-                MessageBox.Show("An instance of FSMosquito client is already running");
+                MessageBox.Show("Another instance of FSMosquito client is already running");
                 return;
             }
 

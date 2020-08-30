@@ -99,7 +99,6 @@
             }
         }
 
-
         private void FsMqtt_MqttConnectionOpened(object sender, EventArgs e)
         {
             _mqttStatus.BackColor = Color.Green;
