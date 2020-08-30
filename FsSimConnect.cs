@@ -3,6 +3,8 @@
     using Microsoft.Extensions.Logging;
     using Microsoft.FlightSimulator.SimConnect;
     using System;
+    using System.Collections.Concurrent;
+    using System.Linq;
     using System.Timers;
 
     /// <summary>
@@ -10,20 +12,27 @@
     /// </summary>
     public sealed class FsSimConnect : IFsSimConnect
     {
+        private static int s_subscriptionCount = 0;
+        private static int s_currentRequestId = 0;
+
         private readonly ILogger<FsSimConnect> _logger;
-        private readonly Timer _timer = new Timer();
+        private readonly Timer _pulseTimer = new Timer(1000);
         private readonly Timer _reconnectTimer = new Timer(15 * 1000);
+        private readonly ConcurrentDictionary<string, SimConnectSubscription> _subscriptions = new ConcurrentDictionary<string, SimConnectSubscription>();
+        private readonly ConcurrentDictionary<int, SimConnectSubscription> _pendingSubscriptions = new ConcurrentDictionary<int, SimConnectSubscription>();
 
         private IntPtr _lastHandle;
         private SimConnect _simConnect;
         
         public event EventHandler SimConnectOpened;
         public event EventHandler SimConnectClosed;
+        public event EventHandler<(SimConnectTopic, double)> TopicValueChanged;
 
         public FsSimConnect(ILogger<FsSimConnect> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+            _pulseTimer.Elapsed += OnPulse_Elapsed;
             _reconnectTimer.Elapsed += OnReconnect_Elapsed;
         }
 
@@ -70,8 +79,8 @@
                 // Listen to exceptions
                 _simConnect.OnRecvException += new SimConnect.RecvExceptionEventHandler(SimConnect_OnRecvException);
 
-                ///// Catch a simobject data request
-                //m_simConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+                // Listen to simobject data request
+                _simConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimObjectDataByType);
 
                 _reconnectTimer.Stop();
             }
@@ -95,7 +104,7 @@
                 throw new InvalidOperationException("FsMqtt is not connected.");
             }
 
-            _timer.Stop();
+            _pulseTimer.Stop();
 
             _simConnect.Dispose();
             _simConnect = null;
@@ -120,14 +129,30 @@
 
         public void Subscribe(SimConnectTopic topic)
         {
-            var defineEnum = (Enum)Enum.ToObject(typeof(Enum), topic.DefineId);
+            if (_subscriptions.ContainsKey(topic.DatumName))
+            {
+                return;
+            }
+
+            var newSubscription = new SimConnectSubscription()
+            {
+                Id = System.Threading.Interlocked.Increment(ref s_subscriptionCount),
+                Topic = topic,
+            };
+
+            if (_subscriptions.TryAdd(topic.DatumName, newSubscription) == false)
+            {
+                return;
+            }
+
+            var def = (Definition)Enum.ToObject(typeof(Definition), newSubscription.Id);
 
             /// Define a data structure
-            _simConnect.AddToDataDefinition(defineEnum, topic.DatumName, topic.Units, SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            _simConnect.AddToDataDefinition(def, topic.DatumName, topic.Units, SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
             
             /// IMPORTANT: Register it with the simconnect managed wrapper marshaller
             /// If you skip this step, you will only receive a uint in the .dwData field.
-            _simConnect.RegisterDataDefineStruct<double>(defineEnum);
+            _simConnect.RegisterDataDefineStruct<double>(def);
         }
 
         /// <summary>
@@ -138,7 +163,7 @@
         private void SimConnect_OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
         {
             _logger.LogInformation("SimConnect_OnRecvOpen");
-            _timer.Start();
+            _pulseTimer.Start();
             OnSimConnect_Opened();
         }
 
@@ -152,8 +177,9 @@
             _logger.LogInformation("SimConnect_OnRecvQuit");
             OnSimConnect_Closed();
             
-            _timer.Stop();
+            _pulseTimer.Stop();
             _reconnectTimer.Start();
+            _subscriptions.Clear();
         }
 
         private void SimConnect_OnRecvException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
@@ -163,27 +189,20 @@
             _reconnectTimer.Start();
         }
 
-        //private void SimConnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
-        //{
-        //    Console.WriteLine("SimConnect_OnRecvSimobjectDataBytype");
+        private void SimConnect_OnRecvSimObjectDataByType(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
+        {
+            uint requestId = data.dwRequestID;
+            //uint objectId = data.dwObjectID;
+            double currentValue = (double)data.dwData[0];
 
-        //    uint iRequest = data.dwRequestID;
-        //    uint iObject = data.dwObjectID;
-        //    if (!lObjectIDs.Contains(iObject))
-        //    {
-        //        lObjectIDs.Add(iObject);
-        //    }
-        //    foreach (SimvarRequest oSimvarRequest in lSimvarRequests)
-        //    {
-        //        if (iRequest == (uint)oSimvarRequest.eRequest && (!bObjectIDSelectionEnabled || iObject == m_iObjectIdRequest))
-        //        {
-        //            double dValue = (double)data.dwData[0];
-        //            oSimvarRequest.dValue = dValue;
-        //            oSimvarRequest.bPending = false;
-        //            oSimvarRequest.bStillPending = false;
-        //        }
-        //    }
-        //}
+            _pendingSubscriptions.TryRemove((int)requestId, out SimConnectSubscription subscription);
+            subscription.PendingRequestId = null;
+            if (subscription.LastValue != currentValue)
+            {
+                subscription.LastValue = currentValue;
+                OnTopicValue_Changed(subscription.Topic, currentValue);
+            }
+        }
 
         private void OnSimConnect_Opened()
         {
@@ -201,12 +220,48 @@
             }
         }
 
+        private void OnTopicValue_Changed(SimConnectTopic topic, double value)
+        {
+            if (TopicValueChanged != null)
+            {
+                TopicValueChanged.Invoke(this, (topic, value));
+            }
+        }
+
+        private void OnPulse_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if (_simConnect == null)
+            {
+                return;
+            }
+
+            foreach(var subscription in _subscriptions.Where(s => s.Value.PendingRequestId.HasValue == false))
+            {
+                var nextRequestId = GetNextRequestId();
+                if (_pendingSubscriptions.TryAdd(nextRequestId, subscription.Value) == false)
+                {
+                    continue;
+                }
+
+                subscription.Value.PendingRequestId = nextRequestId;
+                var req = (Request)Enum.ToObject(typeof(Request), subscription.Value.PendingRequestId);
+                var def = (Definition)Enum.ToObject(typeof(Definition), subscription.Value.Id);
+                _simConnect.RequestDataOnSimObjectType(req, def, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+            }            
+        }
+
         private void OnReconnect_Elapsed(object sender, ElapsedEventArgs e)
         {
             if (IsConnected == false)
             {
                 ConnectToSimConnect();
             }
+        }
+
+        private int GetNextRequestId()
+        {
+            System.Threading.Interlocked.Increment(ref s_currentRequestId);
+            return System.Threading.Interlocked.CompareExchange(ref s_currentRequestId, 0, int.MaxValue - 1);
         }
 
         private void Dispose(bool disposing)
@@ -217,8 +272,8 @@
                 {
                     if (null != _simConnect)
                     {
-                        _timer.Stop();
-                        _timer.Stop();
+                        _pulseTimer.Stop();
+                        _pulseTimer.Dispose();
 
                         _reconnectTimer.Stop();
                         _reconnectTimer.Dispose();

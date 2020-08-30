@@ -4,13 +4,6 @@
 
     public class SimConnectTopic
     {
-        [JsonProperty("defineId")]
-        public int DefineId
-        {
-            get;
-            set;
-        }
-
         [JsonProperty("datumName")]
         public string DatumName
         {

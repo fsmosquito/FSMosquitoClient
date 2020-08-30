@@ -18,6 +18,11 @@
         public event EventHandler SimConnectClosed;
 
         /// <summary>
+        /// Event that is raised when a previously subscribed topic value has changed.
+        /// </summary>
+        public event EventHandler<(SimConnectTopic, double)> TopicValueChanged;
+
+        /// <summary>
         /// Gets a value that indicates if the current instance is connected to SimConnect
         /// </summary>
         bool IsConnected { get; }

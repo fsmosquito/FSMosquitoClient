@@ -10,6 +10,7 @@
     using Newtonsoft.Json;
     using System;
     using System.Text;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -25,7 +26,7 @@
 
         public event EventHandler MqttConnectionOpened;
         public event EventHandler MqttConnectionClosed;
-        public event EventHandler<SimConnectTopic> SubscribeRequestRecieved;
+        public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
 
         public FsMqtt(IConfigurationRoot configuration, ILogger<FsMqtt> logger)
         {
@@ -33,7 +34,7 @@
                 throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            // Connect to the Nexus
+            // Define configuration for the MQTT Broker connection
             _clientId = configuration["fs_mosquito_clientid"];
             _serverUrl = configuration["fs_mosquito_serverurl"];
             var fsmUsername = configuration["fs_mosquito_username"];
@@ -50,7 +51,7 @@
                {
                    PayloadFormatIndicator = MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,
                    ContentType = "text/plain",
-                   Topic = FSMosquitoTopic.ClientStatus,
+                   Topic = string.Format(FSMosquitoTopic.ClientStatus, _clientId),
                    Payload = Encoding.UTF8.GetBytes("Disconnected"),
                    Retain = true
                })
@@ -93,13 +94,24 @@
             await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
         }
 
-        public void Disconnect()
+        public async Task Disconnect()
         {
-            throw new NotImplementedException();
+            await MqttClient.DisconnectAsync();
         }
 
-        public async Task Publish<T>(string topic, T payload, bool retain = false)
+        public async Task PublishTopicValue(SimConnectTopic topic, double value)
         {
+            var normalizedTopicName = Regex.Replace(topic.DatumName.ToLower(), "\\s", "_");
+            await Publish(FSMosquitoTopic.SimConnectTopicValue, value, true, new string[] { _clientId, normalizedTopicName });
+        }
+
+        private async Task Publish<T>(string topic, T payload, bool retain = false, params string[] topicReplacementArgs)
+        {
+            if (topicReplacementArgs == null || topicReplacementArgs.Length == 0)
+            {
+                topicReplacementArgs = new string[] { _clientId };
+            }
+
             var contentType = "application/octet-stream";
             byte[] payloadBytes;
             if (payload is byte[])
@@ -118,11 +130,12 @@
                 payloadBytes = Encoding.UTF8.GetBytes(payloadString);
             }
 
+            var composedTopic = string.Format(topic, topicReplacementArgs);
             await MqttClient.PublishAsync(new MqttApplicationMessage()
             {
                 PayloadFormatIndicator = contentType == "application/octet-stream" ? MQTTnet.Protocol.MqttPayloadFormatIndicator.Unspecified : MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,
                 ContentType = contentType,
-                Topic = string.Format(topic, _clientId),
+                Topic = composedTopic,
                 Payload = payloadBytes,
                 Retain = retain
             });
@@ -135,7 +148,8 @@
             // Subscribe to all FSMosquitoClient related event topics.
             await MqttClient.SubscribeAsync(
                 // SimConnect Events Subscription
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnectTopic, _clientId)).Build()
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnectTopic, _clientId)).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.InvokeSimConnectFunction, _clientId)).Build()
                 );
 
             // Report that we've connected.
@@ -146,29 +160,32 @@
         private async Task OnDisconnected(MqttClientDisconnectedEventArgs e)
         {
             OnMqttConnectionClosed();
-            _logger.LogInformation($"Reconnecting to {_serverUrl}.");
-            await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
+            if (e.ReasonCode != MqttClientDisconnectReason.NormalDisconnection)
+            {
+                _logger.LogInformation($"Reconnecting to {_serverUrl}.");
+                await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
 
-            try
-            {
-                await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
-            }
-            catch
-            {
-                _logger.LogInformation($"Reconnection failed.");
+                try
+                {
+                    await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
+                }
+                catch
+                {
+                    _logger.LogInformation($"Reconnection failed.");
+                }
             }
         }
 
         private Task OnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
             _logger.LogInformation($"Received Application Message for topic {e.ApplicationMessage.Topic}");
-
+            var payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
             switch (e.ApplicationMessage.Topic)
             {
                 // SimConnect Subscription 
                 case var subscription when (subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnectTopic, _clientId)):
-                    var topic = JsonConvert.DeserializeObject<SimConnectTopic>(Encoding.UTF8.GetString(e.ApplicationMessage.Payload));
-                    OnSubscribeRequestRecieved(topic);
+                    var typedPayload = JsonConvert.DeserializeObject<GenericPayload<SimConnectTopic[]>>(payload);
+                    OnSubscribeRequestRecieved(typedPayload.Data);
                     break;
             }
 
@@ -191,11 +208,11 @@
             }
         }
 
-        private void OnSubscribeRequestRecieved(SimConnectTopic topic)
+        private void OnSubscribeRequestRecieved(SimConnectTopic[] topics)
         {
             if (SubscribeRequestRecieved != null)
             {
-                SubscribeRequestRecieved.Invoke(this, topic);
+                SubscribeRequestRecieved.Invoke(this, topics);
             }
         }
 
@@ -208,7 +225,7 @@
             {
                 if (disposing)
                 {
-                    
+
                 }
 
                 _isDisposed = true;
