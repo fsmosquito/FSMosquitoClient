@@ -8,6 +8,9 @@
     using System;
     using System.Drawing;
     using System.IO;
+    using System.Reflection;
+    using System.Runtime.InteropServices;
+    using System.Threading;
     using System.Windows.Forms;
 
     [System.ComponentModel.DesignerCategory("")]
@@ -20,7 +23,7 @@
         public Program()
         {
             MainForm = _serviceProvider.GetService<MainForm>();
-            
+
             // Initialize Tray Icon
             _trayIcon = new NotifyIcon()
             {
@@ -50,6 +53,18 @@
         [STAThread]
         static void Main(string[] args)
         {
+            string appGuid =
+                ((GuidAttribute)Assembly.GetExecutingAssembly().
+                    GetCustomAttributes(typeof(GuidAttribute), false).
+                        GetValue(0)).Value.ToString();
+
+            using Mutex mutex = new Mutex(false, $"Global\\{appGuid}");
+            if (!mutex.WaitOne(0, false))
+            {
+                MessageBox.Show("An instance of FSMosquito client is already running");
+                return;
+            }
+
             // Stand up DI
             var services = new ServiceCollection();
             var builder = new ConfigurationBuilder()
