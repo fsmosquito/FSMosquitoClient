@@ -20,7 +20,7 @@
         /// <summary>
         /// Event that is raised when a previously subscribed topic value has changed.
         /// </summary>
-        public event EventHandler<(SimConnectTopic, double)> TopicValueChanged;
+        public event EventHandler<(SimConnectTopic, object)> TopicValueChanged;
 
         /// <summary>
         /// Gets a value that indicates if the current instance is connected to SimConnect

@@ -1,6 +1,5 @@
 ﻿namespace FSMosquitoClient
 {
-    using Microsoft.FlightSimulator.SimConnect;
     using System;
     using System.Threading.Tasks;
 
@@ -17,7 +16,12 @@
         public event EventHandler MqttConnectionClosed;
 
         /// <summary>
-        /// Event that is raised when a SimConnect Topic Subscription Request is recieved.
+        /// Event that is raised when a report SimConnect status Request is received.
+        /// </summary>
+        public event EventHandler ReportSimConnectStatusRequestRecieved;
+
+        /// <summary>
+        /// Event that is raised when a SimConnect Topic Subscription Request is received.
         /// </summary>
         public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
 
@@ -42,11 +46,18 @@
         Task Disconnect();
 
         /// <summary>
+        /// Publishes the specified simconnect status
+        /// </summary>
+        /// <param name="simConnectStatus"></param>
+        /// <returns></returns>
+        Task PublishSimConnectStatus(string simConnectStatus);
+
+        /// <summary>
         /// Publishes the specified topic value to the MQTT broker
         /// </summary>
         /// <param name="topic"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        Task PublishTopicValue(SimConnectTopic topic, double value);
+        Task PublishTopicValue(SimConnectTopic topic, object value);
     }
 }

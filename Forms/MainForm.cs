@@ -24,6 +24,7 @@
 
             FsMqtt.MqttConnectionOpened += FsMqtt_MqttConnectionOpened;
             FsMqtt.MqttConnectionClosed += FsMqtt_MqttConnectionClosed;
+            fsMqtt.ReportSimConnectStatusRequestRecieved += FsMqtt_ReportSimConnectStatusRequestRecieved;
             FsMqtt.SubscribeRequestRecieved += FsMqtt_SubscribeRequestRecieved;
 
             FsSimConnect.SimConnectOpened += SimConnect_SimConnectOpened;
@@ -84,14 +85,16 @@
         private void SimConnect_SimConnectOpened(object sender, EventArgs e)
         {
             _simConnectStatus.BackColor = Color.Green;
+            FsMqtt.PublishSimConnectStatus("Opened");
         }
 
         private void SimConnect_SimConnectClosed(object sender, EventArgs e)
         {
             _simConnectStatus.BackColor = Color.Orange;
+            FsMqtt.PublishSimConnectStatus("Closed");
         }
 
-        private void SimConnect_TopicValueChanged(object sender, (SimConnectTopic topic, double value) topicValue)
+        private void SimConnect_TopicValueChanged(object sender, (SimConnectTopic topic, object value) topicValue)
         {
             if (FsMqtt.IsConnected)
             {
@@ -109,6 +112,10 @@
             _mqttStatus.BackColor = Color.Orange;
         }
 
+        private void FsMqtt_ReportSimConnectStatusRequestRecieved(object sender, EventArgs e)
+        {
+            FsMqtt.PublishSimConnectStatus(FsSimConnect.IsConnected ? "Opened" : "Closed");
+        }
 
         private void FsMqtt_SubscribeRequestRecieved(object _, SimConnectTopic[] topics)
         {

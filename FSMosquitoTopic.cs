@@ -6,15 +6,21 @@
     public static class FSMosquitoTopic
     {
         // Status Messages (Egress)
-        public static string ClientStatus = "fsm/client/{0}/status";
+        public const string ClientStatus = "fsm/client/{0}/status";
+
+        // Report SimConnect Status (Ingress)
+        public const string ReportSimConnectStatus = "fsm/client/all/simconnect/report_status";
 
         // Invoke Function Calls (Ingress)
-        public static string InvokeSimConnectFunction = "fsm/client/{0}/simconnect/invoke";
+        public const string InvokeSimConnectFunction = "fsm/client/{0}/simconnect/invoke";
 
         // Subscribe to a SimConnect topic (Ingress)
-        public static string SubscribeToSimConnectTopic = "fsm/client/{0}/simconnect/subscribe";
+        public const string SubscribeToSimConnect = "fsm/client/{0}/simconnect/subscribe";
+
+        // SimConnect Status Messages (Egress)
+        public const string SimConnectStatus = "fsm/client/{0}/simconnect/status";
 
         // Simconnect topic value (Egress)
-        public static string SimConnectTopicValue = "fsm/client/{0}/v/{1}";
+        public const string SimConnectTopicValue = "fsm/client/{0}/v/{1}";
     }
 }

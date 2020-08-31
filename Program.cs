@@ -34,6 +34,9 @@
 
             _trayIcon.ContextMenuStrip.Items.Add("Exit", null, MenuExit_Click);
             _trayIcon.Click += TrayIcon_Click;
+
+            MainForm.Show();
+            MainForm.Activate();
         }
 
         private void TrayIcon_Click(object sender, EventArgs e)
