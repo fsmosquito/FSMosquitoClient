@@ -30,6 +30,8 @@
         public event EventHandler MqttConnectionClosed;
         public event EventHandler ReportSimConnectStatusRequestRecieved;
         public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
+        public event EventHandler MqttMessageRecieved;
+        public event EventHandler MqttMessageTransmitted;
 
         public FsMqtt(IConfigurationRoot configuration, ILogger<FsMqtt> logger)
         {
@@ -209,20 +211,32 @@
         private Task OnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
             _logger.LogInformation($"Received Application Message for topic {e.ApplicationMessage.Topic}");
-            var payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-            switch (e.ApplicationMessage.Topic)
+            try
             {
-                // SimConnect Report Status
-                case FSMosquitoTopic.ReportSimConnectStatus:
-                    OnReportSimConnectStatusRequestRecieved();
-                    break;
-                // SimConnect Subscription 
-                case var subscription when subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId):
-                    var typedPayload = JsonConvert.DeserializeObject<GenericPayload<SimConnectTopic[]>>(payload);
-                    OnSubscribeRequestRecieved(typedPayload.Data);
-                    break;
-            }
+                var payload = string.Empty;
+                
+                if (e.ApplicationMessage.Payload != null && e.ApplicationMessage.Payload.Length > 0)
+                    payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
 
+                switch (e.ApplicationMessage.Topic)
+                {
+                    // SimConnect Report Status
+                    case FSMosquitoTopic.ReportSimConnectStatus:
+                        OnReportSimConnectStatusRequestRecieved();
+                        break;
+                    // SimConnect Subscription 
+                    case var subscription when subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId):
+                        var typedPayload = JsonConvert.DeserializeObject<GenericPayload<SimConnectTopic[]>>(payload);
+                        OnSubscribeRequestRecieved(typedPayload.Data);
+                        break;
+                }
+
+                OnMqttMessageRecieved();
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError($"Error deserializing Application Message for topic {e.ApplicationMessage.Topic}: {ex.Message}", ex);
+            }
             return Task.CompletedTask;
         }
 
@@ -250,6 +264,8 @@
                         _mqttMessageQueue.Enqueue(message);
                         break;
                     }
+
+                    OnMqttMessageTransmitted();
                 }
             }
         }
@@ -284,6 +300,22 @@
             if (SubscribeRequestRecieved != null)
             {
                 SubscribeRequestRecieved.Invoke(this, topics);
+            }
+        }
+
+        private void OnMqttMessageRecieved()
+        {
+            if (MqttMessageRecieved != null)
+            {
+                MqttMessageRecieved.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        private void OnMqttMessageTransmitted()
+        {
+            if (MqttMessageTransmitted != null)
+            {
+                MqttMessageTransmitted.Invoke(this, EventArgs.Empty);
             }
         }
         #endregion

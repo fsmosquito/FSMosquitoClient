@@ -16,6 +16,16 @@
         public event EventHandler MqttConnectionClosed;
 
         /// <summary>
+        /// Event that is raised when a MQTT Message is recieved.
+        /// </summary>
+        public event EventHandler MqttMessageRecieved;
+
+        /// <summary>
+        /// Event that is raised when a MQTT Message is transmitted.
+        /// </summary>
+        public event EventHandler MqttMessageTransmitted;
+
+        /// <summary>
         /// Event that is raised when a report SimConnect status Request is received.
         /// </summary>
         public event EventHandler ReportSimConnectStatusRequestRecieved;

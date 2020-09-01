@@ -23,6 +23,16 @@
         public event EventHandler<(SimConnectTopic, object)> TopicValueChanged;
 
         /// <summary>
+        /// Event that is raised when a SimConnect data object is received.
+        /// </summary>
+        public event EventHandler SimConnectDataReceived;
+
+        /// <summary>
+        /// Event that is raised when a SimConnect data object is requested.
+        /// </summary>
+        public event EventHandler SimConnectDataRequested;
+
+        /// <summary>
         /// Gets a value that indicates if the current instance is connected to SimConnect
         /// </summary>
         bool IsConnected { get; }

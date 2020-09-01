@@ -31,6 +31,8 @@
         public event EventHandler SimConnectOpened;
         public event EventHandler SimConnectClosed;
         public event EventHandler<(SimConnectTopic, object)> TopicValueChanged;
+        public event EventHandler SimConnectDataReceived;
+        public event EventHandler SimConnectDataRequested;
 
         public FsSimConnect(ILogger<FsSimConnect> logger)
         {
@@ -46,6 +48,7 @@
             };
         }
 
+        #region Properties
         public bool IsConnected
         {
             get
@@ -59,6 +62,7 @@
             get;
             private set;
         }
+        #endregion
 
         public void Connect(IntPtr handle)
         {
@@ -219,6 +223,7 @@
             }
         }
 
+        #region Event Handlers
         /// <summary>
         /// Occurs when a connection is established to SimConnect.
         /// </summary>
@@ -301,6 +306,8 @@
                     }
                     break;
             }
+
+            OnSimConnectDataRecieved();
         }
 
         private void OnSimConnect_Opened()
@@ -372,19 +379,29 @@
                 var req = (Request)Enum.ToObject(typeof(Request), subscription.PendingRequestId);
                 var def = (Definition)Enum.ToObject(typeof(Definition), subscription.Id);
                 _simConnect.RequestDataOnSimObjectType(req, def, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+
+                OnSimConnectDataRequested();
             }
         }
 
-        /// <summary>
-        /// Gets the next request id (threadsafe, non-overflowing... although if we get to int.maxvalue, that's a lot of seconds)
-        /// </summary>
-        /// <returns></returns>
-        private int GetNextRequestId()
+        private void OnSimConnectDataRecieved()
         {
-            System.Threading.Interlocked.Increment(ref s_currentRequestId);
-            return System.Threading.Interlocked.CompareExchange(ref s_currentRequestId, 0, int.MaxValue - 1);
+            if (SimConnectDataReceived != null)
+            {
+                SimConnectDataReceived.Invoke(this, EventArgs.Empty);
+            }
         }
 
+        private void OnSimConnectDataRequested()
+        {
+            if (SimConnectDataRequested != null)
+            {
+                SimConnectDataRequested.Invoke(this, EventArgs.Empty);
+            }
+        }
+        #endregion
+
+        #region IDisposable
         private void Dispose(bool disposing)
         {
             if (!IsDisposed)
@@ -413,6 +430,7 @@
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
+        #endregion
 
         #region Structs
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
@@ -421,6 +439,18 @@
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
             public string value;
         };
+        #endregion
+
+        #region Static Methods
+        /// <summary>
+        /// Gets the next request id (threadsafe, non-overflowing... although if we get to int.maxvalue, that's a lot of seconds)
+        /// </summary>
+        /// <returns></returns>
+        private static int GetNextRequestId()
+        {
+            System.Threading.Interlocked.Increment(ref s_currentRequestId);
+            return System.Threading.Interlocked.CompareExchange(ref s_currentRequestId, 0, int.MaxValue - 1);
+        }
         #endregion
     }
 }
