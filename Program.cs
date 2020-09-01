@@ -65,14 +65,6 @@
                     GetCustomAttributes(typeof(GuidAttribute), false).
                         GetValue(0)).Value.ToString();
 
-            using Mutex mutex = new Mutex(false, $"Global\\{appGuid}");
-            if (!mutex.WaitOne(0, false))
-            {
-                _logger.LogInformation("Prevented a second instance of the FSMosquito client from opening.");
-                MessageBox.Show("Another instance of FSMosquito client is already running");
-                return;
-            }
-
             // Stand up DI
             var services = new ServiceCollection();
             var builder = new ConfigurationBuilder()
@@ -84,6 +76,14 @@
 
             _serviceProvider = services.BuildServiceProvider();
             _logger = _serviceProvider.GetService<ILogger<Program>>();
+
+            using Mutex mutex = new Mutex(false, $"Global\\{appGuid}");
+            if (!mutex.WaitOne(0, false))
+            {
+                _logger.LogInformation("Prevented a second instance of the FSMosquito client from opening.");
+                MessageBox.Show("Another instance of FSMosquito client is already running");
+                return;
+            }
 
             _logger.LogInformation("Starting FSMosquitoClient...");
 
@@ -101,10 +101,17 @@
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            var ctx = new Program();
-            Application.Run(ctx);
+            try
+            {
+                var ctx = new Program();
+                Application.Run(ctx);
 
-            _logger.LogInformation("FSMosquitoClient is shutting down.");
+                _logger.LogInformation("FSMosquitoClient is shutting down.");
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError($"FSMosquitoClient shut down unexpectedly: {ex.Message}", ex);
+            }
         }
     }
 }

@@ -150,6 +150,9 @@
             if (_subscriptions.ContainsKey(topic.DatumName))
             {
                 _logger.LogInformation($"Skipping {topic.DatumName} as it has already been registered.");
+                // This is verging on side-effect, but clear the last value so it will be re-transmitted next pulse.
+                var subscription = _subscriptions[topic.DatumName];
+                subscription.LastValue = null;
                 return;
             }
 
