@@ -50,7 +50,7 @@
                .WithWebSocketServer(_serverUrl)
                .WithCredentials(fsmUsername, fsmPassword)
                .WithKeepAlivePeriod(TimeSpan.FromSeconds(15))
-               .WithCommunicationTimeout(TimeSpan.FromSeconds(15))
+               .WithCommunicationTimeout(TimeSpan.FromSeconds(120))
                .WithWillDelayInterval(15 * 1000)
                .WithWillMessage(new MqttApplicationMessage()
                {
@@ -201,6 +201,8 @@
                     _logger.LogInformation($"Reconnection failed.");
                 }
             }
+
+            _logger.LogInformation($"Disconnected from {_serverUrl}.");
         }
 
         /// <summary>
@@ -226,8 +228,8 @@
                         break;
                     // SimConnect Subscription 
                     case var subscription when subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId):
-                        var typedPayload = JsonConvert.DeserializeObject<GenericPayload<SimConnectTopic[]>>(payload);
-                        OnSubscribeRequestRecieved(typedPayload.Data);
+                        var typedPayload = JsonConvert.DeserializeObject<SimConnectTopic[]>(payload);
+                        OnSubscribeRequestRecieved(typedPayload);
                         break;
                 }
 

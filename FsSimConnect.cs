@@ -204,6 +204,10 @@
             {
                 switch (topic.Units)
                 {
+                    case Consts.SimConnectBool:
+                        _simConnect.AddToDataDefinition(def, topic.DatumName, null, SIMCONNECT_DATATYPE.INT32, 0, SimConnect.SIMCONNECT_UNUSED);
+                        _simConnect.RegisterDataDefineStruct<bool>(def);
+                        break;
                     case Consts.SimConnectStringV:
                         _simConnect.AddToDataDefinition(def, topic.DatumName, null, SIMCONNECT_DATATYPE.STRINGV, 0, SimConnect.SIMCONNECT_UNUSED);
                         _simConnect.RegisterDataDefineStruct<StringStruct>(def);
@@ -287,6 +291,9 @@
                     {
                         switch (subscription.Topic.Units)
                         {
+                            case Consts.SimConnectBool:
+                                currentValue = (bool)data.dwData[0];
+                                break;
                             case Consts.SimConnectStringV:
                                 currentValue = ((StringStruct)data.dwData[0]).value;
                                 break;

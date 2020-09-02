@@ -82,6 +82,7 @@
                 FsMqtt.Connect();
             }
 
+            _logger.LogInformation("Main Form Shown.");
             base.OnShown(e);
         }
 
