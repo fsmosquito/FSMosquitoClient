@@ -187,19 +187,17 @@
         private async Task OnDisconnected(MqttClientDisconnectedEventArgs e)
         {
             OnMqttConnectionClosed();
-            if (e.ReasonCode != MqttClientDisconnectReason.NormalDisconnection)
-            {
-                _logger.LogInformation($"Reconnecting to {_serverUrl}.");
-                await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
+            _logger.LogInformation($"Reconnecting to {_serverUrl}.");
+            await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
 
-                try
-                {
-                    await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
-                }
-                catch
-                {
-                    _logger.LogInformation($"Reconnection failed.");
-                }
+            try
+            {
+                await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
+                return;
+            }
+            catch
+            {
+                _logger.LogInformation($"Reconnection failed.");
             }
 
             _logger.LogInformation($"Disconnected from {_serverUrl}.");
