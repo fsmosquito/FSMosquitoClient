@@ -34,6 +34,7 @@
             FsMqtt.MqttConnectionClosed += FsMqtt_MqttConnectionClosed;
             FsMqtt.ReportSimConnectStatusRequestRecieved += FsMqtt_ReportSimConnectStatusRequestRecieved;
             FsMqtt.SubscribeRequestRecieved += FsMqtt_SubscribeRequestRecieved;
+            FsMqtt.SetSimVarRequestRecieved += FsMqtt_SetSimVarRequestRecieved;
             FsMqtt.MqttMessageRecieved += FsMqtt_MqttMessageRecieved;
             FsMqtt.MqttMessageTransmitted += FsMqtt_MqttMessageTransmitted;
 
@@ -47,6 +48,7 @@
             _pulseSimConnectStatusTimer.Elapsed += _pulseSimConnectStatusTimer_Elapsed;
             InitializeControls();
         }
+
         public IFsMqtt FsMqtt
         {
             get;
@@ -139,11 +141,11 @@
             _pulseSimConnectStatusTimer.Stop();
         }
 
-        private void SimConnect_TopicValueChanged(object sender, (SimConnectTopic topic, object value) topicValue)
+        private void SimConnect_TopicValueChanged(object sender, (SimConnectTopic topic, uint objectId, object value) topicValue)
         {
             if (FsMqtt.IsConnected)
             {
-                FsMqtt.PublishTopicValue(topicValue.topic, topicValue.value);
+                FsMqtt.PublishTopicValue(topicValue.topic, topicValue.objectId, topicValue.value);
             }
         }
 
@@ -200,6 +202,14 @@
                 }
             }
         }
+
+        private void FsMqtt_SetSimVarRequestRecieved(object sender, (string datumName, uint? objectId, object value) request)
+        {
+            if (FsSimConnect.IsConnected)
+            {
+                FsSimConnect.Set(request.datumName, request.objectId, request.value);
+            }
+        }
         #endregion
 
         #region Initialize Controls
@@ -243,7 +253,7 @@
                 Dock = DockStyle.Top,
             };
 
-            var label = new Label
+            var lblMosquito = new Label
             {
                 Height = 140,
                 Text = "FSMosquito",
@@ -252,7 +262,7 @@
                 Dock = DockStyle.Top,
             };
 
-            Controls.Add(label);
+            Controls.Add(lblMosquito);
             Controls.Add(pb1);
             Controls.Add(statusPanel);
         }

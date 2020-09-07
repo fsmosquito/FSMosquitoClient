@@ -20,6 +20,9 @@
         // SimConnect Status Messages (Egress)
         public const string SimConnectStatus = "fsm/client/{0}/simconnect/status";
 
+        // Set Simconnect topic value (Ingress)
+        public const string SetSimConnectTopicValue = "fsm/client/{0}/v/set/"; //Wildcard added by the subscription
+
         // Simconnect topic value (Egress)
         public const string SimConnectTopicValue = "fsm/client/{0}/v/{1}";
     }

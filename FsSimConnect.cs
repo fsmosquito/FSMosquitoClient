@@ -30,7 +30,7 @@
         
         public event EventHandler SimConnectOpened;
         public event EventHandler SimConnectClosed;
-        public event EventHandler<(SimConnectTopic, object)> TopicValueChanged;
+        public event EventHandler<(SimConnectTopic, uint, object)> TopicValueChanged;
         public event EventHandler SimConnectDataReceived;
         public event EventHandler SimConnectDataRequested;
 
@@ -143,6 +143,27 @@
 
                 _reconnectTimer.Start();
             }
+        }
+
+        public void Set(string datumName, uint? objectId, object value)
+        {
+            if (objectId.HasValue == false)
+            {
+                objectId = 0;
+            }
+
+            if (!_subscriptions.ContainsKey(datumName))
+            {
+                _logger.LogInformation($"Skipping setting value of {datumName} to {value} on object {objectId} as the topic has not been previously registered.");
+            }
+
+            var subscription = _subscriptions[datumName];
+
+            var def = (Definition)Enum.ToObject(typeof(Definition), subscription.Id);
+            _simConnect.SetDataOnSimObject(def, objectId.Value, SIMCONNECT_DATA_SET_FLAG.DEFAULT, value);
+
+            // Cause the updated value to be re-transmitted next pulse.
+            subscription.LastValue = null;
         }
 
         public void Subscribe(SimConnectTopic topic)
@@ -283,38 +304,33 @@
             uint objectId = data.dwObjectID;
 
             // ObjectID == 1 is the user object data (I think)
-            switch(objectId)
+            object currentValue;
+            if (_pendingSubscriptions.TryRemove((int)requestId, out SimConnectSubscription subscription))
             {
-                case 1:
-                    object currentValue;
-                    if (_pendingSubscriptions.TryRemove((int)requestId, out SimConnectSubscription subscription))
+                switch (subscription.Topic.Units)
+                {
+                    case Consts.SimConnectBool:
+                        currentValue = (bool)data.dwData[0];
+                        break;
+                    case Consts.SimConnectStringV:
+                        currentValue = ((StringStruct)data.dwData[0]).value;
+                        break;
+                    default:
+                        currentValue = (double)data.dwData[0];
+                        break;
+                }
+
+                subscription.PendingRequestId = null;
+                subscription.PendingRequestStartTimeStamp = null;
+
+                if (subscription.LastValue == null || subscription.LastValue.Equals(currentValue) == false)
+                {
+                    if (subscription.LastValue != currentValue)
                     {
-                        switch (subscription.Topic.Units)
-                        {
-                            case Consts.SimConnectBool:
-                                currentValue = (bool)data.dwData[0];
-                                break;
-                            case Consts.SimConnectStringV:
-                                currentValue = ((StringStruct)data.dwData[0]).value;
-                                break;
-                            default:
-                                currentValue = (double)data.dwData[0];
-                                break;
-                        }
-
-                        subscription.PendingRequestId = null;
-                        subscription.PendingRequestStartTimeStamp = null;
-
-                        if (subscription.LastValue == null || subscription.LastValue.Equals(currentValue) == false)
-                        {
-                            if (subscription.LastValue != currentValue)
-                            {
-                                subscription.LastValue = currentValue;
-                                OnTopicValue_Changed(subscription.Topic, currentValue);
-                            }
-                        }
+                        subscription.LastValue = currentValue;
+                        OnTopicValue_Changed(subscription.Topic, objectId, currentValue);
                     }
-                    break;
+                }
             }
 
             OnSimConnectDataRecieved();
@@ -351,11 +367,11 @@
             }
         }
 
-        private void OnTopicValue_Changed(SimConnectTopic topic, object value)
+        private void OnTopicValue_Changed(SimConnectTopic topic, uint objectId, object value)
         {
             if (TopicValueChanged != null)
             {
-                TopicValueChanged.Invoke(this, (topic, value));
+                TopicValueChanged.Invoke(this, (topic, objectId, value));
             }
         }
 

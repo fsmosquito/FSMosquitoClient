@@ -52,9 +52,11 @@ There are three main classes involved:
 
  ---
 
- TODO: Right now just the 'SimVars' and 'System Events' described in the FS2020 SimConnect SDK are registered and only in a one-way fashion.
- This should be expanded to allow values to be set from the FSMosquito server, as well as SimConnect functions to be called.
+ The client currently also accepts SimVars to be set via MQTT messages as well, this opens up some interesting possibilities for automation.
 
+ TODO: System variables, invoking various SimConnect functions
+ TODO: Add ability to change MQTT broker in UI
+ TODO: Add ability to specify PAT (Pilot Access Token) and change topics accordingly
 ### Logs
 
 Currently the FSMosquitoClient creates log files located in the ./logs folder relative to where the FSMosquitoClient.exe is located.

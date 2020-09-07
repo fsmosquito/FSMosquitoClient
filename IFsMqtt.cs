@@ -26,14 +26,19 @@
         public event EventHandler MqttMessageTransmitted;
 
         /// <summary>
-        /// Event that is raised when a report SimConnect status Request is received.
+        /// Event that is raised when a report SimConnect status request is received.
         /// </summary>
         public event EventHandler ReportSimConnectStatusRequestRecieved;
 
         /// <summary>
-        /// Event that is raised when a SimConnect Topic Subscription Request is received.
+        /// Event that is raised when a SimConnect Topic Subscription request is received.
         /// </summary>
         public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
+
+        /// <summary>
+        /// Event that is raised when a SimConnect Set SimVar request is recieved.
+        /// </summary>
+        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarRequestRecieved;
 
         /// <summary>
         /// Gets a value that indicates if the current instance is connected to MQTT
@@ -66,8 +71,9 @@
         /// Publishes the specified topic value to the MQTT broker
         /// </summary>
         /// <param name="topic"></param>
+        /// <param name="objectId"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        Task PublishTopicValue(SimConnectTopic topic, object value);
+        Task PublishTopicValue(SimConnectTopic topic, uint objectId, object value);
     }
 }

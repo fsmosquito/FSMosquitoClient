@@ -30,6 +30,7 @@
         public event EventHandler MqttConnectionClosed;
         public event EventHandler ReportSimConnectStatusRequestRecieved;
         public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
+        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarRequestRecieved;
         public event EventHandler MqttMessageRecieved;
         public event EventHandler MqttMessageTransmitted;
 
@@ -114,8 +115,9 @@
             await Publish(FSMosquitoTopic.SimConnectStatus, simConnectStatus);
         }
 
-        public async Task PublishTopicValue(SimConnectTopic topic, object value)
+        public async Task PublishTopicValue(SimConnectTopic topic, uint objectId, object value)
         {
+            //TODO: Include objectId in topic.
             var normalizedTopicName = Regex.Replace(topic.DatumName.ToLower(), "\\s", "_");
             await Publish(FSMosquitoTopic.SimConnectTopicValue, value, true, new string[] { _clientId, normalizedTopicName });
         }
@@ -176,7 +178,8 @@
                 // SimConnect Events Subscription
                 new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.ReportSimConnectStatus, _clientId)).Build(),
                 new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId)).Build(),
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.InvokeSimConnectFunction, _clientId)).Build()
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.InvokeSimConnectFunction, _clientId)).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SetSimConnectTopicValue, _clientId) + "+").Build()
                 );
 
             // Report that we've connected.
@@ -214,7 +217,7 @@
             try
             {
                 var payload = string.Empty;
-                
+
                 if (e.ApplicationMessage.Payload != null && e.ApplicationMessage.Payload.Length > 0)
                     payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
 
@@ -229,11 +232,17 @@
                         var typedPayload = JsonConvert.DeserializeObject<SimConnectTopic[]>(payload);
                         OnSubscribeRequestRecieved(typedPayload);
                         break;
+                    case var setSimVar when setSimVar.StartsWith(string.Format(FSMosquitoTopic.SetSimConnectTopicValue, _clientId)):
+                        var datumName = setSimVar.Substring(setSimVar.LastIndexOf('/') + 1, setSimVar.Length - setSimVar.LastIndexOf('/') - 1);
+                        var deNormalizedTopicName = Regex.Replace(datumName.ToUpper(), "_", " ");
+                        var setSimConnectVarRequestPayload = JsonConvert.DeserializeObject<SetSimConnectVarRequest>(payload);
+                        OnSetSimVarRequestRecieved(deNormalizedTopicName, setSimConnectVarRequestPayload.ObjectId, setSimConnectVarRequestPayload.Value);
+                        break;
                 }
 
                 OnMqttMessageRecieved();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError($"Error deserializing Application Message for topic {e.ApplicationMessage.Topic}: {ex.Message}", ex);
             }
@@ -251,7 +260,7 @@
                 return;
             }
 
-            while(_mqttMessageQueue.Count > 0)
+            while (_mqttMessageQueue.Count > 0)
             {
                 if (_mqttMessageQueue.TryDequeue(out MqttApplicationMessage message))
                 {
@@ -300,6 +309,14 @@
             if (SubscribeRequestRecieved != null)
             {
                 SubscribeRequestRecieved.Invoke(this, topics);
+            }
+        }
+
+        private void OnSetSimVarRequestRecieved(string datumName, uint? objectId, object value)
+        {
+            if (SetSimVarRequestRecieved != null)
+            {
+                SetSimVarRequestRecieved.Invoke(this, (datumName, objectId, value));
             }
         }
 

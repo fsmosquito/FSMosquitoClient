@@ -20,7 +20,7 @@
         /// <summary>
         /// Event that is raised when a previously subscribed topic value has changed.
         /// </summary>
-        public event EventHandler<(SimConnectTopic, object)> TopicValueChanged;
+        public event EventHandler<(SimConnectTopic, uint, object)> TopicValueChanged;
 
         /// <summary>
         /// Event that is raised when a SimConnect data object is received.
@@ -52,6 +52,14 @@
         /// Stops receiving messages from SimConnect
         /// </summary>
         void Disconnect();
+
+        /// <summary>
+        /// Sets a SimConnect Datum value on the specified object id with the indicated value
+        /// </summary>
+        /// <param name="datumName"></param>
+        /// <param name="objectId"></param>
+        /// <param name="value"></param>
+        void Set(string datumName, uint? objectId, object value);
 
         /// <summary>
         /// Subscribes to a SimConnect Datum Topic
