@@ -60,6 +60,9 @@
         [STAThread]
         static void Main(string[] args)
         {
+            // Associate with all unhandled exceptions
+            AppDomain.CurrentDomain.UnhandledException += GlobalExceptionHandler;
+
             string appGuid =
                 ((GuidAttribute)Assembly.GetExecutingAssembly().
                     GetCustomAttributes(typeof(GuidAttribute), false).
@@ -112,6 +115,19 @@
             {
                 _logger.LogError($"FSMosquitoClient shut down unexpectedly: {ex.Message}", ex);
             }
+        }
+
+        static void GlobalExceptionHandler(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (_logger != null)
+            {
+                _logger.LogError($"An unhandled exception occurred: {e.ExceptionObject}", e);
+            }
+
+            Console.WriteLine(e.ExceptionObject.ToString());
+            Console.WriteLine("Press Enter to continue");
+            Console.ReadLine();
+            Environment.Exit(1);
         }
     }
 }
