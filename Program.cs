@@ -85,6 +85,7 @@
         [STAThread]
         static void Main(string[] args)
         {
+#if DEBUG
             if (ExecFunction.IsExecFunctionCommand(args))
             {
                 ExecFunction.Program.Main(args);
@@ -96,6 +97,9 @@
                     Launch();
                 });
             }
+#else
+            Launch();
+#endif
         }
 
         /// <summary>
