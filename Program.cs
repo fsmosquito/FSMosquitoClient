@@ -6,6 +6,7 @@
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using System;
+    using System.Diagnostics;
     using System.Drawing;
     using System.IO;
     using System.Reflection;
@@ -71,7 +72,11 @@
             // Stand up DI
             var services = new ServiceCollection();
             var builder = new ConfigurationBuilder()
-                .AddJsonFile("appsettings.json")
+                .SetBasePath(GetBasePath())
+                .AddJsonFile("appsettings.json", false)
+#if DEBUG
+                .AddJsonFile("appsettings.dev.json", false)
+#endif
                 .AddEnvironmentVariables();
             var configuration = builder.Build();
             var startup = new Startup(configuration);
@@ -106,7 +111,7 @@
             }
         }
 
-        static void GlobalExceptionHandler(object sender, UnhandledExceptionEventArgs e)
+        private static void GlobalExceptionHandler(object sender, UnhandledExceptionEventArgs e)
         {
             if (_logger != null)
             {
@@ -117,6 +122,12 @@
             Console.WriteLine("Press Enter to continue");
             Console.ReadLine();
             Environment.Exit(1);
+        }
+
+        private static string GetBasePath()
+        {
+            using var processModule = Process.GetCurrentProcess().MainModule;
+            return Path.GetDirectoryName(processModule?.FileName);
         }
     }
 }

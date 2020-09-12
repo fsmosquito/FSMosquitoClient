@@ -35,7 +35,7 @@ jobs:
 
       # Build FSMosquitoClient
       - name: Build the application
-        run: dotnet publish $env:Project_Path --configuration Release --runtime win10-x64 /p:Platform=x64 /p:DeployOnBuild=true /p:PublishReadyToRun=true /p:PublishSingleFile=true /p:PublishTrimmed=true /p:PublishProfile="Create FSMosquitoClient Release"
+        run: dotnet publish $env:Project_Path --configuration Release --runtime win10-x64 /p:Platform=x64 /p:DeployOnBuild=true /p:PublishReadyToRun=true /p:PublishSingleFile=true /p:PublishTrimmed=true /p:DebugType=None /p:PublishProfile="Create FSMosquitoClient Release"
 
       # Run WarpPacker on the built files
       # This is commented right now as warp packer opens a console window prior to opening the application - unclear how to prevent this.
