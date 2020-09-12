@@ -90,17 +90,6 @@
 
             _logger.LogInformation("Starting FSMosquitoClient...");
 
-            // Ensure that SimConnect.dll exists in the current folder.
-            if (!File.Exists("./SimConnect.dll"))
-            {
-                _logger.LogInformation("SimConnect.dll did not exist. Adding SimConnect.dll from resource.");
-                File.WriteAllBytes("./SimConnect.dll", Resources.SimConnect);
-            }
-            else
-            {
-                _logger.LogInformation("SimConnect.dll already exists. Continuing.");
-            }
-
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 

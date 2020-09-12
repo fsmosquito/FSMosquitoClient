@@ -198,9 +198,10 @@
                 await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
                 return;
             }
-            catch
+            catch(Exception ex)
             {
                 _logger.LogInformation($"Reconnection failed.");
+                _logger.LogError($"Exception thrown on Reconnect: {ex.Message}", ex);
             }
 
             _logger.LogInformation($"Disconnected from {_serverUrl}.");
