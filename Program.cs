@@ -13,6 +13,7 @@
     using System.Runtime.InteropServices;
     using System.Threading;
     using System.Windows.Forms;
+    using Tmds.Utils;
 
     [System.ComponentModel.DesignerCategory("")]
     public class Program : ApplicationContext
@@ -21,7 +22,27 @@
         private static ILogger<Program> _logger;
         private readonly NotifyIcon _trayIcon;
 
-        public Program()
+        private static readonly FunctionExecutor FSMosquitoExecutor = new FunctionExecutor(
+            o =>
+            {
+                o.StartInfo.RedirectStandardError = true;
+                o.OnExit = p =>
+                {
+                    if (p.ExitCode != 0)
+                    {
+                        string message = $"FSMosquito execution failed with exit code: {p.ExitCode}" + Environment.NewLine +
+                                        p.StandardError.ReadToEnd();
+
+                        FSMosquitoExecutor.Run(() =>
+                        {
+                            Launch(false);
+                        });
+                    }
+                };
+            });
+
+        #region Tray Application Initialization
+        public Program(bool showWindowOnStartup = true)
         {
             MainForm = _serviceProvider.GetService<MainForm>();
 
@@ -30,29 +51,32 @@
             {
                 Icon = Icon.FromHandle(Resources.mosquito.GetHicon()),
                 ContextMenuStrip = new ContextMenuStrip(),
-                Visible = true
+                Visible = true,
+                Text = "FSMosquito Client",
             };
 
-            _trayIcon.ContextMenuStrip.Items.Add("Exit", null, MenuExit_Click);
-            _trayIcon.Click += TrayIcon_Click;
+            _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (sender, e) => Application.Exit());
+            _trayIcon.Click += (sender, e) =>
+            {
+                if (!MainForm.Visible)
+                {
+                    MainForm.Show();
+                }
+                MainForm.Activate();
+            };
 
-            MainForm.Show();
-            MainForm.Activate();
-        }
+            _trayIcon.BalloonTipClosed += (sender, e) =>
+            {
+                var thisIcon = (NotifyIcon)sender; thisIcon.Visible = false; thisIcon.Dispose();
+            };
 
-        private void TrayIcon_Click(object sender, EventArgs e)
-        {
-            if (!MainForm.Visible)
+            if (showWindowOnStartup)
             {
                 MainForm.Show();
+                MainForm.Activate();
             }
-            MainForm.Activate();
         }
-
-        void MenuExit_Click(object sender, EventArgs e)
-        {
-            Application.Exit();
-        }
+        #endregion
 
         /// <summary>
         /// Entry point for the application
@@ -60,6 +84,24 @@
         /// <param name="args"></param>
         [STAThread]
         static void Main(string[] args)
+        {
+            if (ExecFunction.IsExecFunctionCommand(args))
+            {
+                ExecFunction.Program.Main(args);
+            }
+            else
+            {
+                FSMosquitoExecutor.Run(() =>
+                {
+                    Launch();
+                });
+            }
+        }
+
+        /// <summary>
+        /// Launch the application
+        /// </summary>
+        private static void Launch(bool showWindowOnStartup = true)
         {
             // Associate with all unhandled exceptions
             AppDomain.CurrentDomain.UnhandledException += GlobalExceptionHandler;
@@ -94,18 +136,16 @@
             }
 
             _logger.LogInformation("Starting FSMosquitoClient...");
-
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
             try
             {
-                var ctx = new Program();
+                var ctx = new Program(showWindowOnStartup);
                 Application.Run(ctx);
 
                 _logger.LogInformation("FSMosquitoClient is shutting down.");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError($"FSMosquitoClient shut down unexpectedly: {ex.Message}", ex);
             }
