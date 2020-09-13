@@ -86,6 +86,9 @@
         static void Main(string[] args)
         {
 #if DEBUG
+            Launch();
+#else
+
             if (ExecFunction.IsExecFunctionCommand(args))
             {
                 ExecFunction.Program.Main(args);
@@ -97,8 +100,6 @@
                     Launch();
                 });
             }
-#else
-            Launch();
 #endif
         }
 
@@ -107,8 +108,10 @@
         /// </summary>
         private static void Launch(bool showWindowOnStartup = true)
         {
+#if !DEBUG
             // Associate with all unhandled exceptions
             AppDomain.CurrentDomain.UnhandledException += GlobalExceptionHandler;
+#endif
 
             string appGuid =
                 ((GuidAttribute)Assembly.GetExecutingAssembly().
@@ -142,6 +145,11 @@
             _logger.LogInformation("Starting FSMosquitoClient...");
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+#if DEBUG
+            var ctx = new Program(showWindowOnStartup);
+            Application.Run(ctx);
+#else
             try
             {
                 var ctx = new Program(showWindowOnStartup);
@@ -152,7 +160,12 @@
             catch (Exception ex)
             {
                 _logger.LogError($"FSMosquitoClient shut down unexpectedly: {ex.Message}", ex);
+                if (Debugger.IsAttached)
+                {
+                    throw;
+                }
             }
+#endif
         }
 
         private static void GlobalExceptionHandler(object sender, UnhandledExceptionEventArgs e)

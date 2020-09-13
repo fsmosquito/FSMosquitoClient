@@ -30,12 +30,15 @@
 
             services.AddSingleton(Configuration);
 
+            services.AddSingleton<HashAlgorithm>(_sha256);
+
             services.AddSingleton<IFsMqtt, FsMqtt>();
             services.AddSingleton<IFsSimConnect, FsSimConnect>();
+            services.AddSingleton<ISimConnectMqttAdapter, SimConnectMqttAdapter>();
 
             services.AddSingleton(f =>
             {
-                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<IFsSimConnect>(), f.GetService<ILogger<MainForm>>())
+                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<IFsSimConnect>(), f.GetService<ISimConnectMqttAdapter>(), f.GetService<ILogger<MainForm>>())
                 {
                     StartPosition = FormStartPosition.CenterScreen,
                     ShowInTaskbar = false,
@@ -45,8 +48,6 @@
                     FormBorderStyle = FormBorderStyle.FixedSingle,
                 };
             });
-            
-            services.AddSingleton<HashAlgorithm>(_sha256);
         }
     }
 }

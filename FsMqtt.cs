@@ -20,8 +20,6 @@
         private static readonly Random s_random = new Random();
 
         private readonly ILogger<FsMqtt> _logger;
-
-        private readonly string _serverUrl;
         private readonly string _clientId;
         private readonly IMqttClientOptions _mqttClientOptions;
         private readonly ConcurrentQueue<MqttApplicationMessage> _mqttMessageQueue = new ConcurrentQueue<MqttApplicationMessage>();
@@ -42,13 +40,13 @@
 
             // Define configuration for the MQTT Broker connection
             _clientId = configuration["fs_mosquito_clientid"];
-            _serverUrl = configuration["fs_mosquito_serverurl"];
+            MqttBrokerUrl = configuration["fs_mosquito_serverurl"];
             var fsmUsername = configuration["fs_mosquito_username"];
             var fsmPassword = configuration["fs_mosquito_password"];
 
             _mqttClientOptions = new MqttClientOptionsBuilder()
                .WithClientId(_clientId)
-               .WithWebSocketServer(_serverUrl)
+               .WithWebSocketServer(MqttBrokerUrl)
                .WithCredentials(fsmUsername, fsmPassword)
                .WithKeepAlivePeriod(TimeSpan.FromSeconds(15))
                .WithCommunicationTimeout(TimeSpan.FromSeconds(120))
@@ -89,6 +87,8 @@
             private set;
         }
 
+        public string MqttBrokerUrl { get; }
+
         public IFsSimConnect SimConnect
         {
             get;
@@ -101,7 +101,7 @@
 
         public async Task Connect()
         {
-            _logger.LogInformation($"Connecting to {_serverUrl}...");
+            _logger.LogInformation($"Connecting to {MqttBrokerUrl}...");
             await MqttClient.ConnectAsync(_mqttClientOptions, CancellationToken.None);
         }
 
@@ -171,7 +171,7 @@
 
         private async Task OnConnected(MqttClientConnectedEventArgs e)
         {
-            _logger.LogInformation($"Connected to {_serverUrl}.");
+            _logger.LogInformation($"Connected to {MqttBrokerUrl}.");
 
             // Subscribe to all FSMosquitoClient related event topics.
             await MqttClient.SubscribeAsync(
@@ -190,7 +190,7 @@
         private async Task OnDisconnected(MqttClientDisconnectedEventArgs e)
         {
             OnMqttConnectionClosed();
-            _logger.LogInformation($"Reconnecting to {_serverUrl}.");
+            _logger.LogInformation($"Reconnecting to {MqttBrokerUrl}.");
             await Task.Delay(TimeSpan.FromSeconds(s_random.Next(2, 12) * 5));
 
             try
@@ -204,7 +204,7 @@
                 _logger.LogError($"Exception thrown on Reconnect: {ex.Message}", ex);
             }
 
-            _logger.LogInformation($"Disconnected from {_serverUrl}.");
+            _logger.LogInformation($"Disconnected from {MqttBrokerUrl}.");
         }
 
         /// <summary>

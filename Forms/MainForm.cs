@@ -1,13 +1,15 @@
 ﻿namespace FSMosquitoClient.Forms
 {
+    using FSMosquitoClient.Extensions;
     using FSMosquitoClient.Properties;
     using Microsoft.Extensions.Logging;
     using System;
     using System.Drawing;
+    using System.Threading.Tasks;
     using System.Windows.Forms;
 
     /// <summary>
-    /// Represents the main FSMosquito form. Encapsulates and forwards windows messages to an instance of FsMqtt.
+    /// Represents the main FSMosquito form. Provides a minimalistic UI. Signals the Adapter when WinProc is called with a message of our indicated type.
     /// </summary>
     [System.ComponentModel.DesignerCategory("")]
     public class MainForm : Form
@@ -17,35 +19,32 @@
         private readonly System.Timers.Timer _pulseMqttStatusTimer = new System.Timers.Timer(PulseInterval);
         private readonly System.Timers.Timer _pulseSimConnectStatusTimer = new System.Timers.Timer(PulseInterval);
         private readonly ILogger<MainForm> _logger;
-
+        private readonly ISimConnectMqttAdapter _adapter;
         private Color? _nextSimConnectStatusColor = null;
         private Color? _nextMqttStatusColor = null;
 
         private Panel _simConnectStatus;
         private Panel _mqttStatus;
 
-        public MainForm(IFsMqtt fsMqtt, IFsSimConnect fsSimConnect, ILogger<MainForm> logger)
+        public MainForm(IFsMqtt fsMqtt, IFsSimConnect fsSimConnect, ISimConnectMqttAdapter adapter, ILogger<MainForm> logger)
         {
             FsMqtt = fsMqtt ?? throw new ArgumentNullException(nameof(fsMqtt));
             FsSimConnect = fsSimConnect ?? throw new ArgumentNullException(nameof(fsSimConnect));
+            _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             FsMqtt.MqttConnectionOpened += FsMqtt_MqttConnectionOpened;
             FsMqtt.MqttConnectionClosed += FsMqtt_MqttConnectionClosed;
-            FsMqtt.ReportSimConnectStatusRequestRecieved += FsMqtt_ReportSimConnectStatusRequestRecieved;
-            FsMqtt.SubscribeRequestRecieved += FsMqtt_SubscribeRequestRecieved;
-            FsMqtt.SetSimVarRequestRecieved += FsMqtt_SetSimVarRequestRecieved;
             FsMqtt.MqttMessageRecieved += FsMqtt_MqttMessageRecieved;
             FsMqtt.MqttMessageTransmitted += FsMqtt_MqttMessageTransmitted;
 
             FsSimConnect.SimConnectOpened += SimConnect_SimConnectOpened;
             FsSimConnect.SimConnectClosed += SimConnect_SimConnectClosed;
-            FsSimConnect.TopicValueChanged += SimConnect_TopicValueChanged;
             FsSimConnect.SimConnectDataReceived += FsSimConnect_SimConnectDataReceived;
             FsSimConnect.SimConnectDataRequested += FsSimConnect_SimConnectDataRequested;
 
-            _pulseMqttStatusTimer.Elapsed += _pulseMqttStatusTimer_Elapsed;
-            _pulseSimConnectStatusTimer.Elapsed += _pulseSimConnectStatusTimer_Elapsed;
+            _pulseMqttStatusTimer.Elapsed += PulseMqttStatusTimer_Elapsed;
+            _pulseSimConnectStatusTimer.Elapsed += PulseSimConnectStatusTimer_Elapsed;
             InitializeControls();
         }
 
@@ -65,7 +64,8 @@
         {
             if (FsSimConnect != null && m.Msg == Consts.WM_USER_SIMCONNECT)
             {
-                FsSimConnect.SignalReceiveSimConnectMessage();
+                // Fire and forget as to not block the UI thread.
+                Task.Run(_adapter.SignalReceiveSimConnectMessage).Forget();
             }
 
             base.WndProc(ref m);
@@ -74,15 +74,9 @@
         #region Form Event Handlers
         protected override void OnShown(EventArgs e)
         {
-            if (!FsSimConnect.IsConnected)
-            {
-                FsSimConnect.Connect(Handle);
-            }
-
-            if (!FsMqtt.IsConnected)
-            {
-                FsMqtt.Connect();
-            }
+            var handle = Handle;
+            // Fire and forget as to not block the UI thread.
+            Task.Run(() => _adapter.Start(handle)).Forget();
 
             _logger.LogInformation("Main Form Shown.");
             base.OnShown(e);
@@ -100,7 +94,7 @@
         #endregion
 
         #region Pulse Event Handlers
-        private void _pulseSimConnectStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void PulseSimConnectStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             if (_nextSimConnectStatusColor.HasValue == false || _nextSimConnectStatusColor.Value == _simConnectStatus.BackColor)
             {
@@ -112,7 +106,7 @@
             _nextSimConnectStatusColor = null;
         }
 
-        private void _pulseMqttStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void PulseMqttStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             if (_nextMqttStatusColor.HasValue == false || _nextMqttStatusColor.Value == _mqttStatus.BackColor)
             {
@@ -130,23 +124,13 @@
         private void SimConnect_SimConnectOpened(object sender, EventArgs e)
         {
             _simConnectStatus.BackColor = Color.Green;
-            FsMqtt.PublishSimConnectStatus("Opened");
             _pulseSimConnectStatusTimer.Start();
         }
 
         private void SimConnect_SimConnectClosed(object sender, EventArgs e)
         {
             _simConnectStatus.BackColor = Color.Orange;
-            FsMqtt.PublishSimConnectStatus("Closed");
             _pulseSimConnectStatusTimer.Stop();
-        }
-
-        private void SimConnect_TopicValueChanged(object sender, (SimConnectTopic topic, uint objectId, object value) topicValue)
-        {
-            if (FsMqtt.IsConnected)
-            {
-                FsMqtt.PublishTopicValue(topicValue.topic, topicValue.objectId, topicValue.value);
-            }
         }
 
         private void FsSimConnect_SimConnectDataRequested(object sender, EventArgs e)
@@ -186,30 +170,6 @@
             if (_nextMqttStatusColor != Color.Blue)
                 _nextMqttStatusColor = Color.Blue;
         }
-
-        private void FsMqtt_ReportSimConnectStatusRequestRecieved(object sender, EventArgs e)
-        {
-            FsMqtt.PublishSimConnectStatus(FsSimConnect.IsConnected ? "Opened" : "Closed");
-        }
-
-        private void FsMqtt_SubscribeRequestRecieved(object _, SimConnectTopic[] topics)
-        {
-            if (FsSimConnect.IsConnected)
-            {
-                foreach (var topic in topics)
-                {
-                    FsSimConnect.Subscribe(topic);
-                }
-            }
-        }
-
-        private void FsMqtt_SetSimVarRequestRecieved(object sender, (string datumName, uint? objectId, object value) request)
-        {
-            if (FsSimConnect.IsConnected)
-            {
-                FsSimConnect.Set(request.datumName, request.objectId, request.value);
-            }
-        }
         #endregion
 
         #region Initialize Controls
@@ -230,6 +190,9 @@
                 Dock = DockStyle.Left
             };
 
+            var simConnectStatusToolTip = new ToolTip();
+            simConnectStatusToolTip.SetToolTip(_simConnectStatus, "SimConnect.dll");
+
             statusPanel.Controls.Add(_simConnectStatus);
 
             _mqttStatus = new Panel
@@ -239,6 +202,9 @@
                 BackColor = Color.Orange,
                 Dock = DockStyle.Right
             };
+
+            var mqttStatusToolTip = new ToolTip();
+            mqttStatusToolTip.SetToolTip(_mqttStatus, FsMqtt.MqttBrokerUrl);
 
             statusPanel.Controls.Add(_mqttStatus);
 

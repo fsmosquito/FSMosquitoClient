@@ -51,6 +51,11 @@
         bool IsDisposed { get; }
 
         /// <summary>
+        /// Gets the url of the Mqtt Broker that the implementation is using
+        /// </summary>
+        string MqttBrokerUrl { get;  }
+
+        /// <summary>
         /// Start receiving messages from MQTT
         /// </summary>
         Task Connect();

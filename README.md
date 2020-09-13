@@ -21,14 +21,14 @@ VS2019 license.
 
 With VS2019, just open the .sln file and run.
 
-There are three main classes involved:
+There are four main classes involved:
 
  - FsSimConnect - Basically a wrapper around SimConnect that makes it easier to be controlled
  - FsMqtt - Provides the communication layer to a MQTT broker
- - MainForm - Right now, the controller that glues the above together and provides the minimum of a UI. The interaction between FsSimConnect and FsMqtt should probably be brought into a different controller class - but good for now.
+ - SimConnectMqttAdapter - Performs the functional adaptation of the comms between SimConnect and Mqtt.
+ - MainForm - Provides a minimalistic UI - and importantly a WinHandle that SimConnect posts messages to.
 
-
-### Design
+ ### Design
  
  How SimConnect works is that it uses [Windows Procedures](https://docs.microsoft.com/en-us/windows/win32/winmsg/using-window-procedures) to communicate
  with applications out-of-process
