@@ -25,6 +25,7 @@
             {
                 builder
                 .AddSerilog()
+                .SetMinimumLevel(LogLevel.Error)
                 .AddFile("Logs/FSMosquitoClient-{Date}.txt");
             });
 

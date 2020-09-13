@@ -44,8 +44,6 @@
         #region Tray Application Initialization
         public Program(bool showWindowOnStartup = true)
         {
-            MainForm = _serviceProvider.GetService<MainForm>();
-
             // Initialize Tray Icon
             _trayIcon = new NotifyIcon()
             {
@@ -58,6 +56,11 @@
             _trayIcon.ContextMenuStrip.Items.Add("Exit", null, (sender, e) => Application.Exit());
             _trayIcon.Click += (sender, e) =>
             {
+                if (MainForm == null)
+                {
+                    MainForm = _serviceProvider.GetService<MainForm>();
+                }
+
                 if (!MainForm.Visible)
                 {
                     MainForm.Show();
@@ -72,6 +75,7 @@
 
             if (showWindowOnStartup)
             {
+                MainForm = _serviceProvider.GetService<MainForm>();
                 MainForm.Show();
                 MainForm.Activate();
             }
@@ -166,6 +170,7 @@
                 }
             }
 #endif
+            _logger.LogInformation("FSMosquitoClient Stopped.");
         }
 
         private static void GlobalExceptionHandler(object sender, UnhandledExceptionEventArgs e)

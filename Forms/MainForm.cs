@@ -20,6 +20,7 @@
         private readonly System.Timers.Timer _pulseSimConnectStatusTimer = new System.Timers.Timer(PulseInterval);
         private readonly ILogger<MainForm> _logger;
         private readonly ISimConnectMqttAdapter _adapter;
+        private bool _hasShown = false;
         private Color? _nextSimConnectStatusColor = null;
         private Color? _nextMqttStatusColor = null;
 
@@ -74,12 +75,23 @@
         #region Form Event Handlers
         protected override void OnShown(EventArgs e)
         {
-            var handle = Handle;
-            // Fire and forget as to not block the UI thread.
-            Task.Run(() => _adapter.Start(handle)).Forget();
-
             _logger.LogInformation("Main Form Shown.");
             base.OnShown(e);
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            var handle = Handle;
+            // Fire and forget as to not block the UI thread.
+            Task.Run(() => { Task.Delay(1000); _adapter.Start(handle); }).Forget();
+
+            base.OnLoad(e);
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            _logger.LogInformation("Main Form Activated.");
+            base.OnActivated(e);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -88,8 +100,12 @@
             {
                 e.Cancel = true;
                 Hide();
+                _logger.LogInformation("Main Form Hidden.");
             }
-            _logger.LogInformation("Main Form Closing.");
+            else
+            {
+                _logger.LogInformation("Main Form Closing.");
+            }
         }
         #endregion
 
