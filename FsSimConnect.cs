@@ -27,7 +27,7 @@
         
         private IntPtr _lastHandle;
         private SimConnect _simConnect;
-        
+
         public event EventHandler SimConnectOpened;
         public event EventHandler SimConnectClosed;
         public event EventHandler<(SimConnectTopic, uint, object)> TopicValueChanged;
@@ -62,6 +62,8 @@
             get;
             private set;
         }
+
+        public bool IsOpen { get; private set; }
         #endregion
 
         public void Connect(IntPtr handle)
@@ -133,7 +135,10 @@
 
             try
             {
-                _simConnect.ReceiveMessage();
+                lock (_simConnect)
+                {
+                    _simConnect.ReceiveMessage();
+                }
             }
             catch(Exception ex)
             {
@@ -248,7 +253,7 @@
             catch(Exception ex)
             {
                 _logger.LogError($"An exception occurred attempting to register a data definition {ex.Message}", ex);
-            }
+            }            
         }
 
         #region Event Handlers
@@ -259,8 +264,9 @@
         /// <param name="data"></param>
         private void SimConnect_OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
         {
+            IsOpen = true;
             _logger.LogInformation("SimConnect_OnRecvOpen");
-
+            
             _pulseTimer.Start();
             OnSimConnect_Opened();
         }
@@ -272,6 +278,7 @@
         /// <param name="data"></param>
         private void SimConnect_OnRecvQuit(SimConnect sender, SIMCONNECT_RECV data)
         {
+            IsOpen = false;
             _logger.LogInformation("SimConnect_OnRecvQuit");
             OnSimConnect_Closed();
             
@@ -303,7 +310,7 @@
             uint requestId = data.dwRequestID;
             uint objectId = data.dwObjectID;
 
-            // ObjectID == 1 is the user object data (I think)
+            // ObjectID == 0 is the user object data. See SimConnect.SIMCONNECT_OBJECT_ID_USER;
             object currentValue;
             if (_pendingSubscriptions.TryRemove((int)requestId, out SimConnectSubscription subscription))
             {

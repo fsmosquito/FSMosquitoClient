@@ -74,3 +74,8 @@ This project contains a publishing profile that will bundle the application (inc
 
   - On Push to Master or on PR - Builds the project and stores the result as an artifact (except for changes to README.md and /docs/*)
   - On tag that starts with 'v' (ex: ```git tag -a v0.2.0-alpha01 -m "Release Description" && git push --tags```) Builds the project and creates a release that corresponds to the tag.
+
+
+  ## Resources
+
+  https://csharp.hotexamples.com/examples/-/SimConnect/RequestDataOnSimObject/php-simconnect-requestdataonsimobject-method-examples.html

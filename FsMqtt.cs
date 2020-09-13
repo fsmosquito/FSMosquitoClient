@@ -44,13 +44,25 @@
             var fsmUsername = configuration["fs_mosquito_username"];
             var fsmPassword = configuration["fs_mosquito_password"];
 
+            if (!int.TryParse(configuration["fs_mosquito_keep_alive_period"], out int keepAlivePeriod)) {
+                keepAlivePeriod = 10000;
+            }
+
+            if (!int.TryParse(configuration["fs_mosquito_communication_timeout"], out int communicationTimeout)) {
+                communicationTimeout = 30000;
+            }
+
+            if (!uint.TryParse(configuration["fs_mosquito_delay_interval"], out uint delayInterval)) {
+                delayInterval = 15000;
+            }
+
             _mqttClientOptions = new MqttClientOptionsBuilder()
                .WithClientId(_clientId)
                .WithWebSocketServer(MqttBrokerUrl)
                .WithCredentials(fsmUsername, fsmPassword)
-               .WithKeepAlivePeriod(TimeSpan.FromSeconds(15))
-               .WithCommunicationTimeout(TimeSpan.FromSeconds(120))
-               .WithWillDelayInterval(15 * 1000)
+               .WithKeepAlivePeriod(TimeSpan.FromMilliseconds(keepAlivePeriod))
+               .WithCommunicationTimeout(TimeSpan.FromMilliseconds(communicationTimeout))
+               .WithWillDelayInterval(delayInterval)
                .WithWillMessage(new MqttApplicationMessage()
                {
                    PayloadFormatIndicator = MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,

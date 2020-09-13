@@ -45,6 +45,9 @@ jobs:
       # - name: Run WarpPacker
       #   run: .\WarpPacker.exe --arch windows-x64 --input_dir "bin\x64\Release\netcoreapp3.1\win10-x64\publish\" --exec FSMosquitoClient.exe --output FSMosquitoClient.exe
       
+      - name: Remove Unnecessary files
+        run: rm "bin\x64\Release\netcoreapp3.1\win10-x64\publish\appsettings.dev.json"
+      
       # Zip up our build artifacts using powershell
       - name: Zip build artifacts
         run: Compress-Archive -Path "${{ github.workspace }}\bin\x64\Release\netcoreapp3.1\win10-x64\publish\*" FSMosquitoClient.zip

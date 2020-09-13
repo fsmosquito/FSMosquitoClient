@@ -33,7 +33,7 @@
         public event EventHandler SimConnectDataRequested;
 
         /// <summary>
-        /// Gets a value that indicates if the current instance is connected to SimConnect
+        /// Gets a value that indicates if the current instance has been able to create a SimConnect instance
         /// </summary>
         bool IsConnected { get; }
 
@@ -41,6 +41,11 @@
         /// Gets a value that indicates if the current instance has been disposed
         /// </summary>
         bool IsDisposed { get; }
+
+        /// <summary>
+        /// Gets a value that indicates if the SimConnect connection is open and active
+        /// </summary>
+        bool IsOpen { get; }
 
         /// <summary>
         /// Start receiving messages from SimConnect

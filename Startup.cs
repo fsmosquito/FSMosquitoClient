@@ -26,7 +26,8 @@
                 builder
                 .AddSerilog()
                 .SetMinimumLevel(LogLevel.Error)
-                .AddFile("Logs/FSMosquitoClient-{Date}.txt");
+                .AddFile("Logs/FSMosquitoClient-{Date}.txt")
+                .AddConfiguration(Configuration.GetSection("Logging"));
             });
 
             services.AddSingleton(Configuration);
@@ -39,7 +40,7 @@
 
             services.AddSingleton(f =>
             {
-                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<IFsSimConnect>(), f.GetService<ISimConnectMqttAdapter>(), f.GetService<ILogger<MainForm>>())
+                return new MainForm(f.GetService<IFsMqtt>(), f.GetService<IFsSimConnect>(), f.GetService<ILogger<MainForm>>())
                 {
                     StartPosition = FormStartPosition.CenterScreen,
                     ShowInTaskbar = false,

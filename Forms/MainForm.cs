@@ -16,22 +16,21 @@
     {
         private const int PulseInterval = 1000;
 
+        public event EventHandler SimConnectMessageReceived;
+
         private readonly System.Timers.Timer _pulseMqttStatusTimer = new System.Timers.Timer(PulseInterval);
         private readonly System.Timers.Timer _pulseSimConnectStatusTimer = new System.Timers.Timer(PulseInterval);
         private readonly ILogger<MainForm> _logger;
-        private readonly ISimConnectMqttAdapter _adapter;
-        private bool _hasShown = false;
         private Color? _nextSimConnectStatusColor = null;
         private Color? _nextMqttStatusColor = null;
 
         private Panel _simConnectStatus;
         private Panel _mqttStatus;
 
-        public MainForm(IFsMqtt fsMqtt, IFsSimConnect fsSimConnect, ISimConnectMqttAdapter adapter, ILogger<MainForm> logger)
+        public MainForm(IFsMqtt fsMqtt, IFsSimConnect fsSimConnect, ILogger<MainForm> logger)
         {
             FsMqtt = fsMqtt ?? throw new ArgumentNullException(nameof(fsMqtt));
             FsSimConnect = fsSimConnect ?? throw new ArgumentNullException(nameof(fsSimConnect));
-            _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             FsMqtt.MqttConnectionOpened += FsMqtt_MqttConnectionOpened;
@@ -66,7 +65,7 @@
             if (FsSimConnect != null && m.Msg == Consts.WM_USER_SIMCONNECT)
             {
                 // Fire and forget as to not block the UI thread.
-                Task.Run(_adapter.SignalReceiveSimConnectMessage).Forget();
+                Task.Run(() => SimConnectMessageReceived?.Invoke(this, EventArgs.Empty)).Forget();
             }
 
             base.WndProc(ref m);
@@ -77,15 +76,6 @@
         {
             _logger.LogInformation("Main Form Shown.");
             base.OnShown(e);
-        }
-
-        protected override void OnLoad(EventArgs e)
-        {
-            var handle = Handle;
-            // Fire and forget as to not block the UI thread.
-            Task.Run(() => { Task.Delay(1000); _adapter.Start(handle); }).Forget();
-
-            base.OnLoad(e);
         }
 
         protected override void OnActivated(EventArgs e)

@@ -1,5 +1,6 @@
 ﻿namespace FSMosquitoClient
 {
+    using FSMosquitoClient.Extensions;
     using FSMosquitoClient.Forms;
     using FSMosquitoClient.Properties;
     using Microsoft.Extensions.Configuration;
@@ -12,6 +13,7 @@
     using System.Reflection;
     using System.Runtime.InteropServices;
     using System.Threading;
+    using System.Threading.Tasks;
     using System.Windows.Forms;
     using Tmds.Utils;
 
@@ -70,12 +72,25 @@
 
             _trayIcon.BalloonTipClosed += (sender, e) =>
             {
-                var thisIcon = (NotifyIcon)sender; thisIcon.Visible = false; thisIcon.Dispose();
+                _trayIcon.Visible = false;
+                _trayIcon.Dispose();
             };
+
+            // Associate the form with the adapter
+            var form = _serviceProvider.GetService<MainForm>();
+            var adapter = _serviceProvider.GetService<ISimConnectMqttAdapter>();
+            var handle = form.Handle; // Use a separate variable as to not pass the thread context
+            form.SimConnectMessageReceived += (object sender, EventArgs e) =>
+                {
+                    adapter.SignalReceiveSimConnectMessage();
+                };
+
+            // Fire and forget as to not block the UI thread.
+            Task.Run(() => { Task.Delay(2500); adapter.Start(handle); }).Forget();
 
             if (showWindowOnStartup)
             {
-                MainForm = _serviceProvider.GetService<MainForm>();
+                MainForm = form;
                 MainForm.Show();
                 MainForm.Activate();
             }
@@ -89,8 +104,12 @@
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Length < 1 || !bool.TryParse(args[0], out bool showWindowOnStartup))
+            {
+                showWindowOnStartup = true;
+            }
 #if DEBUG
-            Launch();
+            Launch(showWindowOnStartup);
 #else
 
             if (ExecFunction.IsExecFunctionCommand(args))
@@ -101,7 +120,7 @@
             {
                 FSMosquitoExecutor.Run(() =>
                 {
-                    Launch();
+                    Launch(showWindowOnStartup);
                 });
             }
 #endif
@@ -128,7 +147,7 @@
                 .SetBasePath(GetBasePath())
                 .AddJsonFile("appsettings.json", false)
 #if DEBUG
-                .AddJsonFile("appsettings.dev.json", false)
+                .AddJsonFile("appsettings.dev.json", true)
 #endif
                 .AddEnvironmentVariables();
             var configuration = builder.Build();
