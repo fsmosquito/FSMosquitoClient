@@ -118,10 +118,15 @@
             }
             else
             {
-                FSMosquitoExecutor.Run(() =>
+                FSMosquitoExecutor.Run((string[] args) =>
                 {
+                    if (args.Length < 1 || !bool.TryParse(args[0], out bool showWindowOnStartup))
+                    {
+                        showWindowOnStartup = true;
+                    }
+
                     Launch(showWindowOnStartup);
-                });
+                }, new string[] { showWindowOnStartup.ToString() });
             }
 #endif
         }
