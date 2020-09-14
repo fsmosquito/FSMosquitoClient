@@ -77,6 +77,8 @@ Some available MQTT Brokers:
  - [RabbitMQ](https://www.rabbitmq.com/) with the MQTT plugin and MQTTWS plugins enabled (What FSMosquito.com uses)
  - [mosquitto](https://mosquitto.org/documentation/)
  - [HiveMQ](https://www.hivemq.com/)
+ - [Azure IoT](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-mqtt-support)
+ - [AWS IoT](https://docs.aws.amazon.com/iot/latest/developerguide/mqtt.html)
  - Many More! See https://en.wikipedia.org/wiki/Comparison_of_MQTT_implementations
 
 ### Logs
