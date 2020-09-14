@@ -37,9 +37,11 @@ There are four main classes involved:
  
  This mechanism happens within Forms/MainForm.cs class with the WndProc override.
 
- When that message is recieved by the MainForm, it then calls SimConnect to get the actual data associated with the message.
+ When that message is recieved by the MainForm, it raises an event which is handled by the SimConnectMqttAdapter which then requests the actual data associated with the message from SimConnect.
 
- In the case of FSMosquito, it then serializes this data into a MQTT message and publishes it to the broker.
+The adapter then then serializes this data into a MQTT message and publishes it to the broker.
+
+The metrics that are transmitted are very much like individual data points that an IoT device would be relaying to an IoT edge server which can be analyzed. In FSMosquito's case this data is subscribed by various server components which notify the web client of position updates and react to events such as taking off and landing at airports.
 
  --- 
  
@@ -56,7 +58,6 @@ There are four main classes involved:
 
  TODO: System variables, invoking various SimConnect functions
  TODO: Add ability to change MQTT broker in UI
- TODO: Add ability to specify PAT (Pilot Access Token) and change topics accordingly
 ### Logs
 
 Currently the FSMosquitoClient creates log files located in the ./logs folder relative to where the FSMosquitoClient.exe is located.
