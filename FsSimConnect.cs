@@ -13,7 +13,7 @@
     /// </summary>
     public sealed class FsSimConnect : IFsSimConnect
     {
-        private const int PulseInterval = 1000;
+        private const int PulseInterval = 750;
         private const int RequestWaitInterval = 1000 * 5;
 
         private static int s_subscriptionCount = 0;
@@ -311,6 +311,7 @@
             uint objectId = data.dwObjectID;
 
             // ObjectID == 0 is the user object data. See SimConnect.SIMCONNECT_OBJECT_ID_USER;
+            // But it seems to return it as 1... ???
             object currentValue;
             if (_pendingSubscriptions.TryRemove((int)requestId, out SimConnectSubscription subscription))
             {

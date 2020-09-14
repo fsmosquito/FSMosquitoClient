@@ -17,9 +17,9 @@
             FsSimConnect.SimConnectClosed += SimConnect_SimConnectClosed;
             FsSimConnect.TopicValueChanged += SimConnect_TopicValueChanged;
 
-            FsMqtt.ReportSimConnectStatusRequestRecieved += FsMqtt_ReportSimConnectStatusRequestRecieved;
-            FsMqtt.SubscribeRequestRecieved += FsMqtt_SubscribeRequestRecieved;
-            FsMqtt.SetSimVarRequestRecieved += FsMqtt_SetSimVarRequestRecieved;
+            FsMqtt.AtcNotificationReceived += FsMqtt_AtcNotificationReceived;
+            FsMqtt.SubscribeRequestReceived += FsMqtt_SubscribeRequestReceived; ;
+            FsMqtt.SetSimVarValueRequestReceived += FsMqtt_SetSimVarValueRequestReceived;
         }
 
         public IFsMqtt FsMqtt
@@ -71,27 +71,35 @@
             }
         }
 
-        private void FsMqtt_ReportSimConnectStatusRequestRecieved(object sender, EventArgs e)
+        private void FsMqtt_AtcNotificationReceived(object _, AtcNotification e)
         {
-            FsMqtt.PublishSimConnectStatus(FsSimConnect.IsConnected ? "Opened" : "Closed");
+            switch (e.Message?.ToLower())
+            {
+                case "report_status":
+                    {
+                        FsMqtt.PublishSimConnectStatus(FsSimConnect.IsConnected ? "Opened" : "Closed");
+                    }
+                    break;
+            }
         }
 
-        private void FsMqtt_SubscribeRequestRecieved(object _, SimConnectTopic[] topics)
+        private void FsMqtt_SubscribeRequestReceived(object _, (string objectType, SimConnectTopic[] topics) e)
         {
             if (FsSimConnect.IsConnected)
             {
-                foreach (var topic in topics)
+                // We're ignoring the object type for now...
+                foreach (var topic in e.topics)
                 {
                     FsSimConnect.Subscribe(topic);
                 }
             }
         }
 
-        private void FsMqtt_SetSimVarRequestRecieved(object sender, (string datumName, uint? objectId, object value) request)
+        private void FsMqtt_SetSimVarValueRequestReceived(object _, (string datumName, uint? objectId, object value) e)
         {
             if (FsSimConnect.IsConnected)
             {
-                FsSimConnect.Set(request.datumName, request.objectId, request.value);
+                FsSimConnect.Set(e.datumName, e.objectId, e.value);
             }
         }
     }

@@ -56,6 +56,12 @@
       <DependentUpon>appsettings.json</DependentUpon>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
+    <None Include="appsettings.local.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <DependentUpon>appsettings.json</DependentUpon>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
     <None Update="lib\SimConnect.dll">
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>

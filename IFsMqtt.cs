@@ -26,19 +26,19 @@
         public event EventHandler MqttMessageTransmitted;
 
         /// <summary>
-        /// Event that is raised when a report SimConnect status request is received.
+        /// Event that is raised when an ApplicationMessage is recieved on a ATC Notification related topic.
         /// </summary>
-        public event EventHandler ReportSimConnectStatusRequestRecieved;
+        public event EventHandler<AtcNotification> AtcNotificationReceived;
 
         /// <summary>
         /// Event that is raised when a SimConnect Topic Subscription request is received.
         /// </summary>
-        public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
+        public event EventHandler<(string, SimConnectTopic[])> SubscribeRequestReceived;
 
         /// <summary>
-        /// Event that is raised when a SimConnect Set SimVar request is recieved.
+        /// Event that is raised when a SimConnect Set SimVar value request is recieved.
         /// </summary>
-        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarRequestRecieved;
+        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarValueRequestReceived;
 
         /// <summary>
         /// Gets a value that indicates if the current instance is connected to MQTT

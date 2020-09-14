@@ -154,6 +154,7 @@
 #if DEBUG
                 .AddJsonFile("appsettings.dev.json", true)
 #endif
+                .AddJsonFile("appsettings.local.json", true)
                 .AddEnvironmentVariables();
             var configuration = builder.Build();
             var startup = new Startup(configuration);

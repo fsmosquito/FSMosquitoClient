@@ -20,15 +20,15 @@
         private static readonly Random s_random = new Random();
 
         private readonly ILogger<FsMqtt> _logger;
-        private readonly string _clientId;
+        private readonly string _username;
         private readonly IMqttClientOptions _mqttClientOptions;
         private readonly ConcurrentQueue<MqttApplicationMessage> _mqttMessageQueue = new ConcurrentQueue<MqttApplicationMessage>();
 
         public event EventHandler MqttConnectionOpened;
         public event EventHandler MqttConnectionClosed;
-        public event EventHandler ReportSimConnectStatusRequestRecieved;
-        public event EventHandler<SimConnectTopic[]> SubscribeRequestRecieved;
-        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarRequestRecieved;
+        public event EventHandler<AtcNotification> AtcNotificationReceived;
+        public event EventHandler<(string, SimConnectTopic[])> SubscribeRequestReceived;
+        public event EventHandler<(string datumName, uint? objectId, object value)> SetSimVarValueRequestReceived;
         public event EventHandler MqttMessageRecieved;
         public event EventHandler MqttMessageTransmitted;
 
@@ -39,10 +39,9 @@
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             // Define configuration for the MQTT Broker connection
-            _clientId = configuration["fs_mosquito_clientid"];
             MqttBrokerUrl = configuration["fs_mosquito_serverurl"];
-            var fsmUsername = configuration["fs_mosquito_username"];
-            var fsmPassword = configuration["fs_mosquito_password"];
+            var fsmUsername = _username = configuration["fs_mosquito_username"];
+            var fsmPassword = configuration["fs_mosquito_authentication_token"];
 
             if (!int.TryParse(configuration["fs_mosquito_keep_alive_period"], out int keepAlivePeriod)) {
                 keepAlivePeriod = 10000;
@@ -57,7 +56,7 @@
             }
 
             _mqttClientOptions = new MqttClientOptionsBuilder()
-               .WithClientId(_clientId)
+               .WithClientId(_username)
                .WithWebSocketServer(MqttBrokerUrl)
                .WithCredentials(fsmUsername, fsmPassword)
                .WithKeepAlivePeriod(TimeSpan.FromMilliseconds(keepAlivePeriod))
@@ -67,7 +66,7 @@
                {
                    PayloadFormatIndicator = MQTTnet.Protocol.MqttPayloadFormatIndicator.CharacterData,
                    ContentType = "text/plain",
-                   Topic = string.Format(FSMosquitoTopic.ClientStatus, _clientId),
+                   Topic = string.Format(FSMosquitoTopic.ClientStatus, _username),
                    Payload = Encoding.UTF8.GetBytes("Disconnected"),
                    Retain = true
                })
@@ -124,14 +123,13 @@
 
         public async Task PublishSimConnectStatus(string simConnectStatus)
         {
-            await Publish(FSMosquitoTopic.SimConnectStatus, simConnectStatus);
+            await Publish(FSMosquitoTopic.ClientStatus, simConnectStatus);
         }
 
         public async Task PublishTopicValue(SimConnectTopic topic, uint objectId, object value)
         {
-            //TODO: Include objectId in topic.
             var normalizedTopicName = Regex.Replace(topic.DatumName.ToLower(), "\\s", "_");
-            await Publish(FSMosquitoTopic.SimConnectTopicValue, value, true, new string[] { _clientId, normalizedTopicName });
+            await Publish(FSMosquitoTopic.SimConnectTopicValue, value, true, new string[] { _username, objectId.ToString(), normalizedTopicName });
         }
 
         /// <summary>
@@ -147,7 +145,7 @@
         {
             if (topicReplacementArgs == null || topicReplacementArgs.Length == 0)
             {
-                topicReplacementArgs = new string[] { _clientId };
+                topicReplacementArgs = new string[] { _username };
             }
 
             var contentType = "application/octet-stream";
@@ -188,10 +186,11 @@
             // Subscribe to all FSMosquitoClient related event topics.
             await MqttClient.SubscribeAsync(
                 // SimConnect Events Subscription
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.ReportSimConnectStatus, _clientId)).Build(),
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId)).Build(),
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.InvokeSimConnectFunction, _clientId)).Build(),
-                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SetSimConnectTopicValue, _clientId) + "+").Build()
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.AtcNotifications)).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.AtcUserNotifications, _username)).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SubscribeToSimConnect, _username, "+")).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.SetSimVarValue, _username, "+", "+")).Build(),
+                new MqttTopicFilterBuilder().WithTopic(string.Format(FSMosquitoTopic.InvokeSimConnectFunction, _username)).Build()
                 );
 
             // Report that we've connected.
@@ -236,20 +235,22 @@
 
                 switch (e.ApplicationMessage.Topic)
                 {
-                    // SimConnect Report Status
-                    case FSMosquitoTopic.ReportSimConnectStatus:
-                        OnReportSimConnectStatusRequestRecieved();
+                    // Atc Report Status
+                    case FSMosquitoTopic.AtcNotifications:
+                        OnAtcNotificationReceived(payload, false);
+                        break;
+                    case var atcDirectedNotificationTopic when atcDirectedNotificationTopic == string.Format(FSMosquitoTopic.AtcUserNotifications, _username):
+                        OnAtcNotificationReceived(payload, true);
                         break;
                     // SimConnect Subscription 
-                    case var subscription when subscription == string.Format(FSMosquitoTopic.SubscribeToSimConnect, _clientId):
-                        var typedPayload = JsonConvert.DeserializeObject<SimConnectTopic[]>(payload);
-                        OnSubscribeRequestRecieved(typedPayload);
+                    case var subscribeTopic when Regex.IsMatch(subscribeTopic, string.Format(FSMosquitoTopic.SubscribeToSimConnect, _username, ".*(?!/)?")):
+                        var objectType = GetTopicSegmentByIndex(subscribeTopic, 4);
+                        OnSubscribeRequestRecieved(objectType, payload);
                         break;
-                    case var setSimVar when setSimVar.StartsWith(string.Format(FSMosquitoTopic.SetSimConnectTopicValue, _clientId)):
-                        var datumName = setSimVar.Substring(setSimVar.LastIndexOf('/') + 1, setSimVar.Length - setSimVar.LastIndexOf('/') - 1);
-                        var deNormalizedTopicName = Regex.Replace(datumName.ToUpper(), "_", " ");
-                        var setSimConnectVarRequestPayload = JsonConvert.DeserializeObject<SetSimConnectVarRequest>(payload);
-                        OnSetSimVarRequestRecieved(deNormalizedTopicName, setSimConnectVarRequestPayload.ObjectId, setSimConnectVarRequestPayload.Value);
+                    case var setSimVarValueTopic when Regex.IsMatch(setSimVarValueTopic, string.Format(FSMosquitoTopic.SetSimVarValue, _username, ".*(?!/)?", ".*(?!/)?")):
+                        var objectId = GetTopicSegmentByIndex(setSimVarValueTopic, 4);
+                        var datumName = GetTopicSegmentByIndex(setSimVarValueTopic, 5);
+                        OnSetSimVarValueRequestRecieved(datumName, objectId, payload);
                         break;
                 }
 
@@ -260,6 +261,11 @@
                 _logger.LogError($"Error deserializing Application Message for topic {e.ApplicationMessage.Topic}: {ex.Message}", ex);
             }
             return Task.CompletedTask;
+        }
+
+        private string GetTopicSegmentByIndex(string topic, int ix)
+        {
+            return topic.Split("/")[ix];
         }
 
         /// <summary>
@@ -309,27 +315,49 @@
             }
         }
 
-        private void OnReportSimConnectStatusRequestRecieved()
+        /// <summary>
+        /// Raises the AtcNotificationReceived event.
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <param name="isDirected"></param>
+        private void OnAtcNotificationReceived(string payload, bool isDirected)
         {
-            if (ReportSimConnectStatusRequestRecieved != null)
+            var atcNotification = JsonConvert.DeserializeObject<AtcNotification>(payload);
+            atcNotification.Directed = isDirected;
+
+            if (AtcNotificationReceived != null)
             {
-                ReportSimConnectStatusRequestRecieved.Invoke(this, EventArgs.Empty);
+                AtcNotificationReceived.Invoke(this, atcNotification);
             }
         }
 
-        private void OnSubscribeRequestRecieved(SimConnectTopic[] topics)
+        /// <summary>
+        /// Raises the SubscribeRequestReceived event.
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <param name="objectType"></param>
+        private void OnSubscribeRequestRecieved(string objectType, string payload)
         {
-            if (SubscribeRequestRecieved != null)
+            var topics = JsonConvert.DeserializeObject<SimConnectTopic[]>(payload);
+            if (SubscribeRequestReceived != null)
             {
-                SubscribeRequestRecieved.Invoke(this, topics);
+                SubscribeRequestReceived.Invoke(this, (objectType, topics));
             }
         }
 
-        private void OnSetSimVarRequestRecieved(string datumName, uint? objectId, object value)
+        private void OnSetSimVarValueRequestRecieved(string metricName, string objectId, string payload)
         {
-            if (SetSimVarRequestRecieved != null)
+            var datumName = Regex.Replace(metricName.ToUpper(), "_", " ");
+            if (!uint.TryParse(objectId, out uint uintObjectId))
             {
-                SetSimVarRequestRecieved.Invoke(this, (datumName, objectId, value));
+                uintObjectId = 0;
+            }
+
+            var metricValue = JsonConvert.DeserializeObject<SetSimConnectVarRequest>(payload);
+
+            if (SetSimVarValueRequestReceived != null)
+            {
+                SetSimVarValueRequestReceived.Invoke(this, (datumName, uintObjectId, metricValue.Value));
             }
         }
 
