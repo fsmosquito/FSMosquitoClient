@@ -4,6 +4,15 @@ Client application that connects to FS2020 via SimConnect and relays data to the
 
 ![Build FSMosquito Client](https://github.com/fsmosquito/FSMosquitoClient/workflows/Build%20FSMosquito%20Client/badge.svg)
 
+## Getting Started
+
+1. Download the latest FSMosquito Client release on the releases tab and unzip into a folder of your choosing.
+2. Register for an account at www.fsmosquito.com - Currently in Alpha
+3. After email verification, once logged in, obtain the authentication token from the 'account' page (UI/XP needs to be improved)
+4. Within the folder that you unzipped the FSMosquito Client, with a text editor such as notepad, edit the appsettings.json and place your username and the authentication token in the appropriate fields and save the file.
+5. Launch the client by 2x clicking FSMosquitoClient.exe
+6. Start FS2020 and Fly!
+
 ## Developing
 
 Prerequisites (For just the client):
@@ -57,7 +66,7 @@ The metrics that are transmitted are very much like individual data points that 
  The client currently also accepts SimVars to be set via MQTT messages as well, this opens up some interesting possibilities for automation.
 
  TODO: System variables, invoking various SimConnect functions
- TODO: Add ability to change MQTT broker in UI
+
 ### Logs
 
 Currently the FSMosquitoClient creates log files located in the ./logs folder relative to where the FSMosquitoClient.exe is located.
