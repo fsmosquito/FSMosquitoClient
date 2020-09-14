@@ -67,6 +67,18 @@ The metrics that are transmitted are very much like individual data points that 
 
  TODO: System variables, invoking various SimConnect functions
 
+### MQTT Broker
+
+While by default the client is configured to use FSMosquito's hosted broker, the client can be pointed at any MQTT Broker that supports web sockets.
+Simply change the connection string in appconfig.json to point to your own MQTT broker
+
+Some available MQTT Brokers:
+
+ - [RabbitMQ](https://www.rabbitmq.com/) with the MQTT plugin and MQTTWS plugins enabled (What FSMosquito.com uses)
+ - [mosquitto](https://mosquitto.org/documentation/)
+ - [HiveMQ](https://www.hivemq.com/)
+ - Many More! See https://en.wikipedia.org/wiki/Comparison_of_MQTT_implementations
+
 ### Logs
 
 Currently the FSMosquitoClient creates log files located in the ./logs folder relative to where the FSMosquitoClient.exe is located.
