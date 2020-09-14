@@ -6,7 +6,7 @@ Client application that connects to FS2020 via SimConnect and relays data to the
 
 ## Getting Started
 
-1. Download the latest FSMosquito Client release on the releases tab and unzip into a folder of your choosing.
+1. Download the latest FSMosquito Client release on the [releases tab](https://github.com/fsmosquito/FSMosquitoClient/releases) and unzip into a folder of your choosing.
 2. Register for an account at www.fsmosquito.com - Currently in Alpha
 3. After email verification, once logged in, obtain the authentication token from the 'account' page (UI/XP needs to be improved)
 4. Within the folder that you unzipped the FSMosquito Client, with a text editor such as notepad, edit the appsettings.json and place your username and the authentication token in the appropriate fields and save the file.
