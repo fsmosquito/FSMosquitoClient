@@ -1,5 +1,7 @@
 # FSMosquitoClient
 
+> Deprecation Notice - This repository is archived in favor of https://github.com/fsmosquito/fsmosquito which includes all the functionality contained in this repository (within /fsmosquito-simconnect-client) with the addition of a desktop application that displays a moving map and eventually more.
+
 Client application that connects to FS2020 via SimConnect and relays data to the FSMosquito Server via MQTT
 
 ![Build FSMosquito Client](https://github.com/fsmosquito/FSMosquitoClient/workflows/Build%20FSMosquito%20Client/badge.svg)
